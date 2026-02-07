@@ -112,6 +112,10 @@
             border-bottom-style: solid;
         }
 
+        .status-arrived { color: #4e7a56; }
+        .status-enroute { color: #4a6d8a; }
+        .status-scheduled { color: #8a7a2e; }
+
         tr.next-up {
             border-left: 3px solid #8b5a2b;
             background: rgba(139, 90, 43, 0.08);
@@ -232,7 +236,13 @@
                     airportCell = `<a href="${svURL}" target="_blank">${label}</a>`;
                 }
                 const aircraft = escapeHtml(f.registration || f.aircraftType || '');
-                const status = escapeHtml(f.status || '');
+                const statusText = f.status || '';
+                const statusLower = statusText.toLowerCase();
+                const statusClass = statusLower.includes('arrived') ? 'status-arrived'
+                    : statusLower.includes('en route') ? 'status-enroute'
+                    : statusLower.includes('scheduled') ? 'status-scheduled'
+                    : '';
+                const status = escapeHtml(statusText);
                 const cls = i === nextIdx ? ' class="next-up"' : '';
                 return `<tr${cls}>
                     <td>${icon}</td>
@@ -240,7 +250,7 @@
                     <td>${identCell}</td>
                     <td>${airportCell}</td>
                     <td>${aircraft}</td>
-                    <td>${status}</td>
+                    <td class="${statusClass}">${status}</td>
                 </tr>`;
             }).join('');
         }
