@@ -130,12 +130,11 @@
 <body>
     <div class="airport-header">
         <h1 id="airport-title">Loading&hellip;</h1>
-        <div class="datetime" id="current-datetime"></div>
     </div>
     <div class="last-updated" id="last-updated"></div>
 
     <div class="board">
-        <div class="board-header">Flights</div>
+        <div class="board-header" id="board-header">Flights</div>
         <table>
             <thead>
                 <tr>
@@ -270,13 +269,18 @@
             document.getElementById('last-updated').textContent = 'Last updated: ' + formatNow();
         }
 
-        // Update clock every second
-        function updateClock() {
-            document.getElementById('current-datetime').textContent = formatNow();
+
+        function updateBoardHeader() {
+            const d = new Date();
+            const day = d.toLocaleDateString([], { weekday: 'long' });
+            const mon = d.toLocaleDateString([], { month: 'short' });
+            const date = d.getDate();
+            const year = d.getFullYear();
+            document.getElementById('board-header').textContent =
+                `Flights for ${day} ${mon} ${date}, ${year}`;
         }
 
-        updateClock();
-        setInterval(updateClock, 1000);
+        updateBoardHeader();
 
         // Fetch config, set header, then start refreshing
         (async function init() {
