@@ -124,6 +124,14 @@
         tr.next-up td:first-child {
             padding-left: 13px;
         }
+
+        tr.overhead {
+            border-left: 4px solid #a45a52;
+        }
+
+        tr.overhead td:first-child {
+            padding-left: 12px;
+        }
     </style>
 </head>
 <body>
@@ -194,7 +202,7 @@
             return div.innerHTML;
         }
 
-        function renderFlights(flights, tbody) {
+        function renderFlights(flights, tbody, overheadIds) {
             if (!flights || flights.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
                 return;
@@ -243,7 +251,11 @@
                     : statusLower.includes('scheduled') ? 'status-scheduled'
                     : '';
                 const status = escapeHtml(statusText);
-                const cls = i === nextIdx ? ' class="next-up"' : '';
+                const isOverhead = overheadIds && overheadIds.has(f.faFlightId);
+                const classes = [];
+                if (i === nextIdx) classes.push('next-up');
+                if (isOverhead) classes.push('overhead');
+                const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
                 return `<tr${cls}>
                     <td>${icon}</td>
                     <td>${time}</td>
@@ -255,6 +267,9 @@
             }).join('');
         }
 
+        let lastFlights = [];
+        let lastOverheadIds = new Set();
+
         async function refresh() {
             const tbody = document.getElementById('flights-body');
 
@@ -265,13 +280,23 @@
 
                 const deps = (data.departures || []).map(f => ({ ...f, direction: 'dep' }));
                 const arrs = (data.arrivals || []).map(f => ({ ...f, direction: 'arr' }));
-                renderFlights(deps.concat(arrs), tbody);
+                lastFlights = deps.concat(arrs);
+                renderFlights(lastFlights, tbody, lastOverheadIds);
             } catch (err) {
                 console.error('Refresh error:', err);
                 tbody.innerHTML = '<tr><td colspan="6" class="error-msg">Error loading data</td></tr>';
             }
 
             document.getElementById('last-updated').textContent = 'Last updated: ' + formatNow();
+
+            // Fetch overhead in background, re-render when it arrives
+            fetch('/overhead').then(r => r.ok ? r.json() : null).then(oh => {
+                if (oh) {
+                    lastOverheadIds = new Set(oh.flightIds || []);
+                    const tbody = document.getElementById('flights-body');
+                    if (lastFlights.length) renderFlights(lastFlights, tbody, lastOverheadIds);
+                }
+            }).catch(() => {});
         }
 
 

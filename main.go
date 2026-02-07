@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -16,8 +17,12 @@ import (
 const aeroAPIBase = "https://aeroapi.flightaware.com/aeroapi"
 
 type config struct {
-	AeroAPIKey  string `json:"aeroApiKey"`
-	HomeAirport string `json:"homeAirport"`
+	AeroAPIKey     string  `json:"aeroApiKey"`
+	HomeAirport    string  `json:"homeAirport"`
+	OverheadLatMin float64 `json:"overheadLatMin"`
+	OverheadLatMax float64 `json:"overheadLatMax"`
+	OverheadLonMin float64 `json:"overheadLonMin"`
+	OverheadLonMax float64 `json:"overheadLonMax"`
 }
 
 func loadConfig(path string) (config, error) {
@@ -455,6 +460,113 @@ func makeFlightMapHandler(apiKey string) http.HandlerFunc {
 	}
 }
 
+// Overhead flight search: returns fa_flight_ids of flights within the configured lat/lon box
+
+type positionEntry struct {
+	FaFlightID string `json:"fa_flight_id"`
+}
+
+type positionsResponse struct {
+	Positions []positionEntry `json:"positions"`
+}
+
+func makeOverheadHandler(apiKey string, cfg config) http.HandlerFunc {
+	var mu sync.Mutex
+	cachedIds := make(map[string]bool)
+	var lastQueryTime time.Time
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		setCORS(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if cfg.OverheadLatMin == 0 && cfg.OverheadLatMax == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"flightIds":[]}`))
+			return
+		}
+
+		now := time.Now()
+		oneHourAgo := now.Add(-1 * time.Hour)
+
+		// Use the later of lastQueryTime or oneHourAgo as the start
+		mu.Lock()
+		startTime := oneHourAgo
+		if !lastQueryTime.IsZero() && lastQueryTime.After(oneHourAgo) {
+			startTime = lastQueryTime
+		}
+		mu.Unlock()
+
+		query := fmt.Sprintf("{range lat %f %f} {range lon %f %f} {range clock %d %d}",
+			cfg.OverheadLatMin, cfg.OverheadLatMax,
+			cfg.OverheadLonMin, cfg.OverheadLonMax,
+			startTime.Unix(), now.Unix())
+
+		apiURL := fmt.Sprintf("%s/flights/search/positions?unique_flights=true&query=%s",
+			aeroAPIBase, url.QueryEscape(query))
+
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, apiURL, nil)
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("x-apikey", apiKey)
+
+		log.Printf("Fetching overhead flights: %s", apiURL)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("Error fetching overhead flights: %v", err)
+			http.Error(w, "failed to fetch overhead data", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "failed to read response", http.StatusBadGateway)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("AeroAPI positions error (%d): %s", resp.StatusCode, body)
+			http.Error(w, fmt.Sprintf("AeroAPI error: %d", resp.StatusCode), resp.StatusCode)
+			return
+		}
+
+		var posResp positionsResponse
+		if err := json.Unmarshal(body, &posResp); err != nil {
+			log.Printf("Error parsing positions response: %v", err)
+			http.Error(w, "failed to parse position data", http.StatusInternalServerError)
+			return
+		}
+
+		mu.Lock()
+		lastQueryTime = now
+		// Merge new results into cache, and evict IDs not seen in the last hour
+		for _, p := range posResp.Positions {
+			if p.FaFlightID != "" {
+				cachedIds[p.FaFlightID] = true
+			}
+		}
+		// Build response from full cache
+		ids := make([]string, 0, len(cachedIds))
+		for id := range cachedIds {
+			ids = append(ids, id)
+		}
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string][]string{"flightIds": ids})
+	}
+}
+
 func main() {
 	cfg, err := loadConfig("config.json")
 	if err != nil {
@@ -477,6 +589,7 @@ func main() {
 	})
 	http.HandleFunc("/flight/map", makeFlightMapHandler(cfg.AeroAPIKey))
 	http.HandleFunc("/flights", makeFlightsHandler(cfg.AeroAPIKey, cfg.HomeAirport))
+	http.HandleFunc("/overhead", makeOverheadHandler(cfg.AeroAPIKey, cfg))
 	http.HandleFunc("/airport", makeAirportHandler(cfg.AeroAPIKey, ac))
 
 	log.Println("Server listening on :8080")

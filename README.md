@@ -23,6 +23,7 @@ Real-time flight departure/arrival board for any airport. A Go backend proxies t
 
    - `aeroApiKey` — your FlightAware AeroAPI key
    - `homeAirport` — ICAO code of the airport to display
+   - `overheadLatMin`, `overheadLatMax`, `overheadLonMin`, `overheadLonMax` — (optional) define a bounding box around your location to highlight flights that fly overhead. Geocode your address (e.g. via [geocoding.geo.census.gov](https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?form)), then compute a ±0.00725° latitude / ±0.00872° longitude offset for a ~0.5 mile radius
 
 3. Build and run:
 

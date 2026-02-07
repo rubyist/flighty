@@ -1,4 +1,8 @@
 {
   "aeroApiKey": "your-aeroapi-key",
-  "homeAirport": "DTW"
+  "homeAirport": "DTW",
+  "overheadLatMin": 0.0,
+  "overheadLatMax": 0.0,
+  "overheadLonMin": 0.0,
+  "overheadLonMax": 0.0
 }
