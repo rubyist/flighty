@@ -184,15 +184,23 @@ func makeFlightHandler(tc *tokenCache, flightType string) http.HandlerFunc {
 	}
 }
 
-const airportCacheFile = "airport-cache.json"
+const (
+	airportCacheFile = "airport-cache.json"
+	skyVectorAPI     = "https://skyvector.com/api/airportSearch"
+)
+
+type airportInfo struct {
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
 
 type airportCache struct {
-	mu    sync.RWMutex
-	names map[string]string
+	mu       sync.RWMutex
+	airports map[string]airportInfo
 }
 
 func loadAirportCache() *airportCache {
-	ac := &airportCache{names: make(map[string]string)}
+	ac := &airportCache{airports: make(map[string]airportInfo)}
 	data, err := os.ReadFile(airportCacheFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -200,17 +208,17 @@ func loadAirportCache() *airportCache {
 		}
 		return ac
 	}
-	if err := json.Unmarshal(data, &ac.names); err != nil {
+	if err := json.Unmarshal(data, &ac.airports); err != nil {
 		log.Printf("Warning: could not parse airport cache: %v", err)
 		return ac
 	}
-	log.Printf("Loaded %d airports from cache", len(ac.names))
+	log.Printf("Loaded %d airports from cache", len(ac.airports))
 	return ac
 }
 
 func (ac *airportCache) save() {
 	ac.mu.RLock()
-	data, err := json.MarshalIndent(ac.names, "", "  ")
+	data, err := json.MarshalIndent(ac.airports, "", "  ")
 	ac.mu.RUnlock()
 	if err != nil {
 		log.Printf("Warning: could not marshal airport cache: %v", err)
@@ -219,6 +227,28 @@ func (ac *airportCache) save() {
 	if err := os.WriteFile(airportCacheFile, data, 0644); err != nil {
 		log.Printf("Warning: could not write airport cache: %v", err)
 	}
+}
+
+func fetchSkyVectorURL(code string) string {
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(fmt.Sprintf("%s?query=%s", skyVectorAPI, code))
+	if err != nil {
+		log.Printf("Warning: SkyVector lookup failed for %s: %v", code, err)
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusMovedPermanently {
+		loc := resp.Header.Get("Location")
+		if loc != "" && !strings.HasPrefix(loc, "http") {
+			loc = "https://skyvector.com" + loc
+		}
+		return loc
+	}
+	return ""
 }
 
 var icaoPattern = regexp.MustCompile(`^[A-Z]{4}$`)
@@ -243,11 +273,11 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 
 		// Check cache first
 		cache.mu.RLock()
-		name, ok := cache.names[code]
+		info, ok := cache.airports[code]
 		cache.mu.RUnlock()
 		if ok {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"code": code, "name": name})
+			json.NewEncoder(w).Encode(info)
 			return
 		}
 
@@ -261,31 +291,31 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"code": code, "name": ""})
-			return
+		info = airportInfo{}
+		if resp.StatusCode == http.StatusOK {
+			var result struct {
+				Name string `json:"name"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				log.Printf("Error decoding airport %s: %v", code, err)
+			} else {
+				info.Name = result.Name
+			}
 		}
 
-		var result struct {
-			Name string `json:"name"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			log.Printf("Error decoding airport %s: %v", code, err)
-			http.Error(w, "failed to parse airport data", http.StatusBadGateway)
-			return
-		}
+		// Fetch SkyVector URL
+		info.URL = fetchSkyVectorURL(code)
 
 		// Cache the result and persist to disk
 		cache.mu.Lock()
-		cache.names[code] = result.Name
+		cache.airports[code] = info
 		cache.mu.Unlock()
 		cache.save()
 
-		log.Printf("Cached new airport: %s = %s", code, result.Name)
+		log.Printf("Cached new airport: %s = %+v", code, info)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"code": code, "name": result.Name})
+		json.NewEncoder(w).Encode(info)
 	}
 }
 

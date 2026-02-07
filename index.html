@@ -112,6 +112,17 @@
             cursor: help;
             border-bottom: 1px dotted #666;
         }
+
+        td a {
+            color: #4fc3f7;
+            text-decoration: none;
+            border-bottom: 1px dotted #4fc3f7;
+        }
+
+        td a:hover {
+            color: #81d4fa;
+            border-bottom-style: solid;
+        }
     </style>
 </head>
 <body>
@@ -156,19 +167,19 @@
     </div>
 
     <script>
-        const airportNameCache = {};
+        const airportCache = {};
 
         async function lookupAirport(code) {
-            if (!code) return '';
-            if (code in airportNameCache) return airportNameCache[code];
+            if (!code) return null;
+            if (code in airportCache) return airportCache[code];
             try {
                 const res = await fetch(`/airport?code=${encodeURIComponent(code)}`);
-                if (!res.ok) return '';
+                if (!res.ok) return null;
                 const data = await res.json();
-                airportNameCache[code] = data.name || '';
-                return airportNameCache[code];
+                airportCache[code] = { name: data.name || '', url: data.url || '' };
+                return airportCache[code];
             } catch {
-                return '';
+                return null;
             }
         }
 
@@ -207,10 +218,18 @@
                 const time = formatTime(f[timeField]);
                 const callsign = (f.callsign || '').trim() || '—';
                 const code = f[airportField] || '';
-                const name = airportNameCache[code] || '';
-                const airportCell = code
-                    ? (name ? `<span title="${name}">${code}</span>` : code)
-                    : '—';
+                const info = airportCache[code];
+                let airportCell = '—';
+                if (code) {
+                    const title = info && info.name ? ` title="${info.name}"` : '';
+                    if (info && info.url) {
+                        airportCell = `<a href="${info.url}" target="_blank"${title}>${code}</a>`;
+                    } else if (info && info.name) {
+                        airportCell = `<span${title}>${code}</span>`;
+                    } else {
+                        airportCell = code;
+                    }
+                }
                 const icao24 = (f.icao24 || '').toUpperCase();
                 return `<tr>
                     <td>${time}</td>
