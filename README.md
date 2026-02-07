@@ -1,6 +1,6 @@
 # Flighty
 
-Real-time flight departure/arrival board for DeKalb-Peachtree Airport (KPDK). A Go backend proxies the FlightAware AeroAPI and serves a single-page frontend with an airport-style display.
+Real-time flight departure/arrival board for any airport. A Go backend proxies the FlightAware AeroAPI and serves a single-page frontend with an airport-style display.
 
 ## Setup
 
