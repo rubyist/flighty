@@ -101,11 +101,6 @@
             color: #b5432a;
         }
 
-        td span[title] {
-            cursor: help;
-            border-bottom: 1px dotted #9a8e7a;
-        }
-
         td a {
             color: #2a7565;
             text-decoration: none;
@@ -233,8 +228,8 @@
                 let airportCell = '—';
                 if (code) {
                     const svURL = `https://skyvector.com/airport/${code}`;
-                    const title = name ? ` title="${escapeHtml(name)}"` : '';
-                    airportCell = `<a href="${svURL}" target="_blank"${title}>${escapeHtml(code)}</a>`;
+                    const label = name ? `${escapeHtml(code)} - ${escapeHtml(name)}` : escapeHtml(code);
+                    airportCell = `<a href="${svURL}" target="_blank">${label}</a>`;
                 }
                 const aircraft = escapeHtml(f.registration || f.aircraftType || '');
                 const status = escapeHtml(f.status || '');
