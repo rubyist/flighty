@@ -190,6 +190,9 @@ func main() {
 
 	tc := &tokenCache{creds: creds}
 
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
+	})
 	http.HandleFunc("/departures", makeFlightHandler(tc, "departure"))
 	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival"))
 

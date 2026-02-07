@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDK — DeKalb-Peachtree Airport</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: "Courier New", Courier, monospace;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .airport-header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #333;
+            margin-bottom: 30px;
+        }
+
+        .airport-header h1 {
+            font-size: 2em;
+            color: #ffc107;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .airport-header .datetime {
+            color: #aaa;
+            font-size: 1em;
+            margin-top: 8px;
+        }
+
+        .last-updated {
+            text-align: center;
+            color: #666;
+            font-size: 0.85em;
+            margin-bottom: 20px;
+        }
+
+        .board {
+            max-width: 900px;
+            margin: 0 auto 40px auto;
+        }
+
+        .board-header {
+            padding: 10px 16px;
+            font-size: 1.3em;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        .board-header.departures {
+            background: #2e7d32;
+        }
+
+        .board-header.arrivals {
+            background: #1565c0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1a1a1a;
+            color: #ffc107;
+            text-align: left;
+            padding: 10px 16px;
+            font-size: 0.9em;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #333;
+        }
+
+        td {
+            padding: 8px 16px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 1em;
+            color: #e0e0e0;
+        }
+
+        tr:hover td {
+            background: #1a1a1a;
+        }
+
+        .no-flights {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .error-msg {
+            text-align: center;
+            padding: 20px;
+            color: #ef5350;
+        }
+    </style>
+</head>
+<body>
+    <div class="airport-header">
+        <h1>PDK &mdash; DeKalb-Peachtree Airport</h1>
+        <div class="datetime" id="current-datetime"></div>
+    </div>
+    <div class="last-updated" id="last-updated"></div>
+
+    <div class="board">
+        <div class="board-header departures">Departures</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Flight</th>
+                    <th>To</th>
+                    <th>Aircraft</th>
+                </tr>
+            </thead>
+            <tbody id="departures-body">
+                <tr><td colspan="4" class="no-flights">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="board">
+        <div class="board-header arrivals">Arrivals</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Flight</th>
+                    <th>From</th>
+                    <th>Aircraft</th>
+                </tr>
+            </thead>
+            <tbody id="arrivals-body">
+                <tr><td colspan="4" class="no-flights">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function formatTime(unix) {
+            if (!unix) return '--:--';
+            const d = new Date(unix * 1000);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function formatNow() {
+            return new Date().toLocaleString([], {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
+
+        function renderRows(flights, tbody, timeField, airportField) {
+            if (!flights || flights.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-flights">No flights</td></tr>';
+                return;
+            }
+
+            flights.sort((a, b) => (a[timeField] || 0) - (b[timeField] || 0));
+
+            tbody.innerHTML = flights.map(f => {
+                const time = formatTime(f[timeField]);
+                const callsign = (f.callsign || '').trim() || '—';
+                const airport = f[airportField] || '—';
+                const icao24 = (f.icao24 || '').toUpperCase();
+                return `<tr>
+                    <td>${time}</td>
+                    <td>${callsign}</td>
+                    <td>${airport}</td>
+                    <td>${icao24}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function refresh() {
+            const depBody = document.getElementById('departures-body');
+            const arrBody = document.getElementById('arrivals-body');
+
+            try {
+                const [depRes, arrRes] = await Promise.all([
+                    fetch('/departures'),
+                    fetch('/arrivals')
+                ]);
+
+                if (!depRes.ok) throw new Error('Failed to fetch departures');
+                if (!arrRes.ok) throw new Error('Failed to fetch arrivals');
+
+                const [departures, arrivals] = await Promise.all([
+                    depRes.json(),
+                    arrRes.json()
+                ]);
+
+                renderRows(departures, depBody, 'firstSeen', 'estArrivalAirport');
+                renderRows(arrivals, arrBody, 'lastSeen', 'estDepartureAirport');
+            } catch (err) {
+                console.error('Refresh error:', err);
+                depBody.innerHTML = '<tr><td colspan="4" class="error-msg">Error loading data</td></tr>';
+                arrBody.innerHTML = '<tr><td colspan="4" class="error-msg">Error loading data</td></tr>';
+            }
+
+            document.getElementById('last-updated').textContent = 'Last updated: ' + formatNow();
+        }
+
+        // Update clock every second
+        function updateClock() {
+            document.getElementById('current-datetime').textContent = formatNow();
+        }
+
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // Initial load + refresh every 5 minutes
+        refresh();
+        setInterval(refresh, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
