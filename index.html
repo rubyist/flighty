@@ -123,6 +123,15 @@
             color: #81d4fa;
             border-bottom-style: solid;
         }
+
+        tr.next-up {
+            border-left: 3px solid #ffc107;
+            background: rgba(255, 193, 7, 0.06);
+        }
+
+        tr.next-up td:first-child {
+            padding-left: 13px;
+        }
     </style>
 </head>
 <body>
@@ -223,7 +232,17 @@
                 return new Date(a.time) - new Date(b.time);
             });
 
-            tbody.innerHTML = flights.map(f => {
+            // Find the first flight with a known time at or after now
+            const now = Date.now();
+            let nextIdx = -1;
+            for (let i = 0; i < flights.length; i++) {
+                if (flights[i].time && new Date(flights[i].time) >= now) {
+                    nextIdx = i;
+                    break;
+                }
+            }
+
+            tbody.innerHTML = flights.map((f, i) => {
                 const time = formatTime(f.time);
                 const ident = escapeHtml(f.ident || '—');
                 const apt = f[airportField] || {};
@@ -237,7 +256,8 @@
                 }
                 const aircraft = escapeHtml(f.registration || f.aircraftType || '');
                 const status = escapeHtml(f.status || '');
-                return `<tr>
+                const cls = i === nextIdx ? ' class="next-up"' : '';
+                return `<tr${cls}>
                     <td>${time}</td>
                     <td>${ident}</td>
                     <td>${airportCell}</td>
