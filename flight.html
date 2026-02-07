@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Info</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: "Courier New", Courier, monospace;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: #4fc3f7;
+            text-decoration: none;
+            border-bottom: 1px dotted #4fc3f7;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+
+        .back-link:hover {
+            color: #81d4fa;
+            border-bottom-style: solid;
+        }
+
+        .flight-header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #333;
+            margin-bottom: 30px;
+        }
+
+        .flight-header h1 {
+            font-size: 2em;
+            color: #ffc107;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .info-section {
+            max-width: 700px;
+            margin: 0 auto 30px auto;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 8px 16px;
+            padding: 16px;
+            background: #111;
+            border: 1px solid #222;
+        }
+
+        .info-label {
+            color: #ffc107;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85em;
+        }
+
+        .info-value {
+            color: #e0e0e0;
+        }
+
+        .info-value a {
+            color: #4fc3f7;
+            text-decoration: none;
+            border-bottom: 1px dotted #4fc3f7;
+        }
+
+        .info-value a:hover {
+            color: #81d4fa;
+            border-bottom-style: solid;
+        }
+
+        .map-section {
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .map-section h2 {
+            color: #ffc107;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-size: 1.1em;
+            margin-bottom: 16px;
+        }
+
+        .map-section img {
+            max-width: 100%;
+            border: 1px solid #333;
+        }
+
+        .map-loading, .map-error {
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+
+        .map-error {
+            color: #ef5350;
+        }
+    </style>
+</head>
+<body>
+    <a class="back-link" href="/">&larr; Back to board</a>
+
+    <div class="flight-header">
+        <h1 id="flight-title">Loading&hellip;</h1>
+    </div>
+
+    <div class="info-section" id="info-section"></div>
+
+    <div class="map-section">
+        <h2>Flight Map</h2>
+        <div id="map-container">
+            <div class="map-loading">Loading map&hellip;</div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatTime(iso) {
+            if (!iso) return '--:--';
+            const d = new Date(iso);
+            if (isNaN(d)) return '--:--';
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const flightId = params.get('id');
+        const dataParam = params.get('data');
+
+        if (!flightId) {
+            document.getElementById('flight-title').textContent = 'No flight specified';
+        } else {
+            let flight = null;
+            if (dataParam) {
+                try {
+                    flight = JSON.parse(atob(dataParam));
+                } catch (e) {
+                    console.error('Failed to decode flight data:', e);
+                }
+            }
+
+            if (flight) {
+                const ident = flight.ident || flightId;
+                document.getElementById('flight-title').textContent = ident;
+                document.title = `Flight ${ident}`;
+
+                const originCode = (flight.origin && flight.origin.code) || '';
+                const originName = (flight.origin && flight.origin.name) || '';
+                const destCode = (flight.destination && flight.destination.code) || '';
+                const destName = (flight.destination && flight.destination.name) || '';
+
+                function airportDisplay(code, name) {
+                    if (!code) return '—';
+                    const svURL = `https://skyvector.com/airport/${escapeHtml(code)}`;
+                    const label = name ? `${escapeHtml(code)} — ${escapeHtml(name)}` : escapeHtml(code);
+                    return `<a href="${svURL}" target="_blank">${label}</a>`;
+                }
+
+                const rows = [
+                    ['Flight', escapeHtml(ident)],
+                    ['Origin', airportDisplay(originCode, originName)],
+                    ['Destination', airportDisplay(destCode, destName)],
+                    ['Time', escapeHtml(formatTime(flight.time))],
+                    ['Status', escapeHtml(flight.status || '—')],
+                    ['Aircraft', escapeHtml(flight.aircraftType || '—')],
+                    ['Registration', escapeHtml(flight.registration || '—')],
+                ];
+
+                document.getElementById('info-section').innerHTML = '<div class="info-grid">' +
+                    rows.map(([label, value]) =>
+                        `<div class="info-label">${label}</div><div class="info-value">${value}</div>`
+                    ).join('') +
+                    '</div>';
+            } else {
+                document.getElementById('flight-title').textContent = flightId;
+                document.title = `Flight ${flightId}`;
+            }
+
+            // Fetch map
+            fetch(`/flight/map?id=${encodeURIComponent(flightId)}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.map) {
+                        const b64 = data.map.replace(/\n/g, '');
+                        document.getElementById('map-container').innerHTML =
+                            `<img src="data:image/png;base64,${b64}" alt="Flight map">`;
+                    } else {
+                        document.getElementById('map-container').innerHTML =
+                            '<div class="map-error">No map available</div>';
+                    }
+                })
+                .catch(err => {
+                    console.error('Map fetch error:', err);
+                    document.getElementById('map-container').innerHTML =
+                        '<div class="map-error">Could not load map</div>';
+                });
+        }
+    </script>
+</body>
+</html>

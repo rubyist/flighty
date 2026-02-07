@@ -55,6 +55,7 @@ type aeroAirport struct {
 
 type aeroFlight struct {
 	Ident        string      `json:"ident"`
+	FaFlightID   string      `json:"fa_flight_id"`
 	Origin       aeroAirport `json:"origin"`
 	Destination  aeroAirport `json:"destination"`
 	ScheduledOut string      `json:"scheduled_out"`
@@ -88,6 +89,7 @@ type frontendAirport struct {
 
 type frontendFlight struct {
 	Ident        string          `json:"ident"`
+	FaFlightID   string          `json:"faFlightId"`
 	Origin       frontendAirport `json:"origin"`
 	Destination  frontendAirport `json:"destination"`
 	Time         string          `json:"time"`
@@ -117,6 +119,7 @@ func toFrontendAirport(a aeroAirport) frontendAirport {
 func toFrontendDeparture(f aeroFlight) frontendFlight {
 	return frontendFlight{
 		Ident:        f.Ident,
+		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
 		Time:         firstNonEmpty(f.ActualOff, f.ScheduledOff, f.ScheduledOut, f.ActualOut),
@@ -129,6 +132,7 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 func toFrontendArrival(f aeroFlight) frontendFlight {
 	return frontendFlight{
 		Ident:        f.Ident,
+		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
 		Time:         firstNonEmpty(f.ActualOn, f.ScheduledOn, f.ScheduledIn, f.ActualIn),
@@ -158,13 +162,13 @@ func makeFlightsHandler(apiKey string, airport string) http.HandlerFunc {
 		}
 
 		now := time.Now()
-		twoHoursAgo := now.Add(-2 * time.Hour)
+		thirtyMinAgo := now.Add(-30 * time.Minute)
 		endOfDay := now.Truncate(24 * time.Hour).Add(24 * time.Hour)
 
 		start := r.URL.Query().Get("start")
 		end := r.URL.Query().Get("end")
 		if start == "" {
-			start = twoHoursAgo.UTC().Format(time.RFC3339)
+			start = thirtyMinAgo.UTC().Format(time.RFC3339)
 		}
 		if end == "" {
 			end = endOfDay.UTC().Format(time.RFC3339)
@@ -398,6 +402,59 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 	}
 }
 
+func makeFlightMapHandler(apiKey string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		setCORS(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		flightID := r.URL.Query().Get("id")
+		if flightID == "" {
+			http.Error(w, "missing id parameter", http.StatusBadRequest)
+			return
+		}
+
+		apiURL := fmt.Sprintf("%s/flights/%s/map?show_airports=true", aeroAPIBase, flightID)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, apiURL, nil)
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("x-apikey", apiKey)
+
+		log.Printf("Fetching flight map: %s", apiURL)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("Error fetching flight map: %v", err)
+			http.Error(w, "failed to fetch map", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "failed to read response", http.StatusBadGateway)
+			return
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("AeroAPI map error (%d): %s", resp.StatusCode, body)
+			http.Error(w, fmt.Sprintf("AeroAPI error: %d", resp.StatusCode), resp.StatusCode)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(body)
+	}
+}
+
 func main() {
 	cfg, err := loadConfig("config.json")
 	if err != nil {
@@ -415,6 +472,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"homeAirport": cfg.HomeAirport})
 	})
+	http.HandleFunc("/flight", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "flight.html")
+	})
+	http.HandleFunc("/flight/map", makeFlightMapHandler(cfg.AeroAPIKey))
 	http.HandleFunc("/flights", makeFlightsHandler(cfg.AeroAPIKey, cfg.HomeAirport))
 	http.HandleFunc("/airport", makeAirportHandler(cfg.AirportDBToken, ac))
 

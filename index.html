@@ -244,7 +244,12 @@
 
             tbody.innerHTML = flights.map((f, i) => {
                 const time = formatTime(f.time);
-                const ident = escapeHtml(f.ident || '—');
+                const identText = escapeHtml(f.ident || '—');
+                let identCell = identText;
+                if (f.faFlightId) {
+                    const encoded = btoa(JSON.stringify(f));
+                    identCell = `<a href="/flight?id=${encodeURIComponent(f.faFlightId)}&data=${encodeURIComponent(encoded)}">${identText}</a>`;
+                }
                 const apt = f[airportField] || {};
                 const code = apt.code || '';
                 const name = apt.name || '';
@@ -259,7 +264,7 @@
                 const cls = i === nextIdx ? ' class="next-up"' : '';
                 return `<tr${cls}>
                     <td>${time}</td>
-                    <td>${ident}</td>
+                    <td>${identCell}</td>
                     <td>${airportCell}</td>
                     <td>${aircraft}</td>
                     <td>${status}</td>
