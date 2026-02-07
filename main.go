@@ -58,7 +58,9 @@ type aeroFlight struct {
 	Origin       aeroAirport `json:"origin"`
 	Destination  aeroAirport `json:"destination"`
 	ScheduledOut string      `json:"scheduled_out"`
+	ScheduledOff string      `json:"scheduled_off"`
 	ScheduledIn  string      `json:"scheduled_in"`
+	ScheduledOn  string      `json:"scheduled_on"`
 	ActualOut    string      `json:"actual_out"`
 	ActualIn     string      `json:"actual_in"`
 	ActualOff    string      `json:"actual_off"`
@@ -117,7 +119,7 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		Ident:        f.Ident,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOff, f.ScheduledOut, f.ActualOut),
+		Time:         firstNonEmpty(f.ActualOff, f.ScheduledOff, f.ScheduledOut, f.ActualOut),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
@@ -129,7 +131,7 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		Ident:        f.Ident,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOn, f.ScheduledIn, f.ActualIn),
+		Time:         firstNonEmpty(f.ActualOn, f.ScheduledOn, f.ScheduledIn, f.ActualIn),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
@@ -156,13 +158,13 @@ func makeFlightsHandler(apiKey string, airport string) http.HandlerFunc {
 		}
 
 		now := time.Now()
-		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		endOfDay := startOfDay.Add(24 * time.Hour)
+		twoHoursAgo := now.Add(-2 * time.Hour)
+		endOfDay := now.Truncate(24 * time.Hour).Add(24 * time.Hour)
 
 		start := r.URL.Query().Get("start")
 		end := r.URL.Query().Get("end")
 		if start == "" {
-			start = startOfDay.UTC().Format(time.RFC3339)
+			start = twoHoursAgo.UTC().Format(time.RFC3339)
 		}
 		if end == "" {
 			end = endOfDay.UTC().Format(time.RFC3339)
