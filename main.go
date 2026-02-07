@@ -22,9 +22,28 @@ const (
 	airport      = "KPDK"
 )
 
-type credentials struct {
-	ClientID     string `json:"clientId"`
-	ClientSecret string `json:"clientSecret"`
+type config struct {
+	OpenSkyClientID     string `json:"openskyClientId"`
+	OpenSkyClientSecret string `json:"openskyClientSecret"`
+	AirportDBToken      string `json:"airportDbToken"`
+}
+
+func loadConfig(path string) (config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return config{}, fmt.Errorf("reading config file: %w", err)
+	}
+	var cfg config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return config{}, fmt.Errorf("parsing config: %w", err)
+	}
+	if cfg.OpenSkyClientID == "" || cfg.OpenSkyClientSecret == "" {
+		return config{}, fmt.Errorf("openskyClientId and openskyClientSecret must be set in config file")
+	}
+	if cfg.AirportDBToken == "" {
+		return config{}, fmt.Errorf("airportDbToken must be set in config file")
+	}
+	return cfg, nil
 }
 
 type tokenResponse struct {
@@ -36,22 +55,7 @@ type tokenCache struct {
 	mu        sync.Mutex
 	token     string
 	expiresAt time.Time
-	creds     credentials
-}
-
-func loadCredentials(path string) (credentials, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return credentials{}, fmt.Errorf("reading credentials file: %w", err)
-	}
-	var creds credentials
-	if err := json.Unmarshal(data, &creds); err != nil {
-		return credentials{}, fmt.Errorf("parsing credentials: %w", err)
-	}
-	if creds.ClientID == "" || creds.ClientSecret == "" {
-		return credentials{}, fmt.Errorf("clientId and clientSecret must be set in credentials file")
-	}
-	return creds, nil
+	cfg       config
 }
 
 func (tc *tokenCache) getToken() (string, error) {
@@ -64,8 +68,8 @@ func (tc *tokenCache) getToken() (string, error) {
 
 	resp, err := http.PostForm(tokenURL, url.Values{
 		"grant_type":    {"client_credentials"},
-		"client_id":     {tc.creds.ClientID},
-		"client_secret": {tc.creds.ClientSecret},
+		"client_id":     {tc.cfg.OpenSkyClientID},
+		"client_secret": {tc.cfg.OpenSkyClientSecret},
 	})
 	if err != nil {
 		return "", fmt.Errorf("requesting token: %w", err)
@@ -329,18 +333,13 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 }
 
 func main() {
-	creds, err := loadCredentials("opensky-credentials.json")
+	cfg, err := loadConfig("config.json")
 	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
-	log.Printf("Loaded credentials for client: %s", creds.ClientID)
+	log.Printf("Loaded config for OpenSky client: %s", cfg.OpenSkyClientID)
 
-	airportDBToken, err := os.ReadFile("airportdb.token")
-	if err != nil {
-		log.Fatalf("Failed to load AirportDB token: %v", err)
-	}
-
-	tc := &tokenCache{creds: creds}
+	tc := &tokenCache{cfg: cfg}
 	ac := loadAirportCache()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -348,7 +347,7 @@ func main() {
 	})
 	http.HandleFunc("/departures", makeFlightHandler(tc, "departure"))
 	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival"))
-	http.HandleFunc("/airport", makeAirportHandler(strings.TrimSpace(string(airportDBToken)), ac))
+	http.HandleFunc("/airport", makeAirportHandler(cfg.AirportDBToken, ac))
 
 	log.Println("Server listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
