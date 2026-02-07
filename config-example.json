@@ -1,5 +1,6 @@
 {
   "openskyClientId": "your-opensky-client-id",
   "openskyClientSecret": "your-opensky-client-secret",
-  "airportDbToken": "your-airportdb-api-token"
+  "airportDbToken": "your-airportdb-api-token",
+  "homeAirport": "KPDK"
 }

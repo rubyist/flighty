@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDK — DeKalb-Peachtree Airport</title>
+    <title>Flighty</title>
     <style>
         * {
             margin: 0;
@@ -127,7 +127,7 @@
 </head>
 <body>
     <div class="airport-header">
-        <h1>PDK &mdash; DeKalb-Peachtree Airport</h1>
+        <h1 id="airport-title">Loading&hellip;</h1>
         <div class="datetime" id="current-datetime"></div>
     </div>
     <div class="last-updated" id="last-updated"></div>
@@ -279,9 +279,24 @@
         updateClock();
         setInterval(updateClock, 1000);
 
-        // Initial load + refresh every 1 hour
-        refresh();
-        setInterval(refresh, 60 * 60 * 1000);
+        // Fetch config, set header, then start refreshing
+        (async function init() {
+            try {
+                const cfgRes = await fetch('/config');
+                const cfg = await cfgRes.json();
+                const code = cfg.homeAirport || '????';
+                const info = await lookupAirport(code);
+                const name = info && info.name ? info.name : '';
+                const title = name ? `${code} — ${name}` : code;
+                document.getElementById('airport-title').textContent = title;
+                document.title = title;
+            } catch (err) {
+                console.error('Config load error:', err);
+                document.getElementById('airport-title').textContent = 'Flighty';
+            }
+            refresh();
+            setInterval(refresh, 60 * 60 * 1000);
+        })();
     </script>
 </body>
 </html>

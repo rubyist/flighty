@@ -19,13 +19,13 @@ const (
 	tokenURL     = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
 	openskyAPI   = "https://opensky-network.org/api/flights"
 	airportDBAPI = "https://airportdb.io/api/v1/airport"
-	airport      = "KPDK"
 )
 
 type config struct {
 	OpenSkyClientID     string `json:"openskyClientId"`
 	OpenSkyClientSecret string `json:"openskyClientSecret"`
 	AirportDBToken      string `json:"airportDbToken"`
+	HomeAirport         string `json:"homeAirport"`
 }
 
 func loadConfig(path string) (config, error) {
@@ -42,6 +42,9 @@ func loadConfig(path string) (config, error) {
 	}
 	if cfg.AirportDBToken == "" {
 		return config{}, fmt.Errorf("airportDbToken must be set in config file")
+	}
+	if cfg.HomeAirport == "" {
+		return config{}, fmt.Errorf("homeAirport must be set in config file")
 	}
 	return cfg, nil
 }
@@ -100,7 +103,7 @@ func setCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
-func makeFlightHandler(tc *tokenCache, flightType string) http.HandlerFunc {
+func makeFlightHandler(tc *tokenCache, flightType string, airport string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCORS(w)
 
@@ -345,8 +348,13 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
 	})
-	http.HandleFunc("/departures", makeFlightHandler(tc, "departure"))
-	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival"))
+	http.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		setCORS(w)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"homeAirport": cfg.HomeAirport})
+	})
+	http.HandleFunc("/departures", makeFlightHandler(tc, "departure", cfg.HomeAirport))
+	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival", cfg.HomeAirport))
 	http.HandleFunc("/airport", makeAirportHandler(cfg.AirportDBToken, ac))
 
 	log.Println("Server listening on :8080")
