@@ -8,15 +8,18 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	tokenURL   = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
-	openskyAPI = "https://opensky-network.org/api/flights"
-	airport    = "KPDK"
+	tokenURL     = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
+	openskyAPI   = "https://opensky-network.org/api/flights"
+	airportDBAPI = "https://airportdb.io/api/v1/airport"
+	airport      = "KPDK"
 )
 
 type credentials struct {
@@ -181,6 +184,111 @@ func makeFlightHandler(tc *tokenCache, flightType string) http.HandlerFunc {
 	}
 }
 
+const airportCacheFile = "airport-cache.json"
+
+type airportCache struct {
+	mu    sync.RWMutex
+	names map[string]string
+}
+
+func loadAirportCache() *airportCache {
+	ac := &airportCache{names: make(map[string]string)}
+	data, err := os.ReadFile(airportCacheFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("Warning: could not read airport cache: %v", err)
+		}
+		return ac
+	}
+	if err := json.Unmarshal(data, &ac.names); err != nil {
+		log.Printf("Warning: could not parse airport cache: %v", err)
+		return ac
+	}
+	log.Printf("Loaded %d airports from cache", len(ac.names))
+	return ac
+}
+
+func (ac *airportCache) save() {
+	ac.mu.RLock()
+	data, err := json.MarshalIndent(ac.names, "", "  ")
+	ac.mu.RUnlock()
+	if err != nil {
+		log.Printf("Warning: could not marshal airport cache: %v", err)
+		return
+	}
+	if err := os.WriteFile(airportCacheFile, data, 0644); err != nil {
+		log.Printf("Warning: could not write airport cache: %v", err)
+	}
+}
+
+var icaoPattern = regexp.MustCompile(`^[A-Z]{4}$`)
+
+func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		setCORS(w)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		code := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("code")))
+		if !icaoPattern.MatchString(code) {
+			http.Error(w, "invalid airport code", http.StatusBadRequest)
+			return
+		}
+
+		// Check cache first
+		cache.mu.RLock()
+		name, ok := cache.names[code]
+		cache.mu.RUnlock()
+		if ok {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"code": code, "name": name})
+			return
+		}
+
+		// Fetch from AirportDB
+		apiURL := fmt.Sprintf("%s/%s?apiToken=%s", airportDBAPI, code, apiToken)
+		resp, err := http.Get(apiURL)
+		if err != nil {
+			log.Printf("Error fetching airport %s: %v", code, err)
+			http.Error(w, "failed to fetch airport data", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"code": code, "name": ""})
+			return
+		}
+
+		var result struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			log.Printf("Error decoding airport %s: %v", code, err)
+			http.Error(w, "failed to parse airport data", http.StatusBadGateway)
+			return
+		}
+
+		// Cache the result and persist to disk
+		cache.mu.Lock()
+		cache.names[code] = result.Name
+		cache.mu.Unlock()
+		cache.save()
+
+		log.Printf("Cached new airport: %s = %s", code, result.Name)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"code": code, "name": result.Name})
+	}
+}
+
 func main() {
 	creds, err := loadCredentials("opensky-credentials.json")
 	if err != nil {
@@ -188,13 +296,20 @@ func main() {
 	}
 	log.Printf("Loaded credentials for client: %s", creds.ClientID)
 
+	airportDBToken, err := os.ReadFile("airportdb.token")
+	if err != nil {
+		log.Fatalf("Failed to load AirportDB token: %v", err)
+	}
+
 	tc := &tokenCache{creds: creds}
+	ac := loadAirportCache()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
 	})
 	http.HandleFunc("/departures", makeFlightHandler(tc, "departure"))
 	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival"))
+	http.HandleFunc("/airport", makeAirportHandler(strings.TrimSpace(string(airportDBToken)), ac))
 
 	log.Println("Server listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

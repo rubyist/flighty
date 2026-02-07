@@ -156,157 +156,20 @@
     </div>
 
     <script>
-        const AIRPORTS = {
-            // Atlanta area
-            KPDK: "DeKalb-Peachtree Airport",
-            KATL: "Hartsfield-Jackson Atlanta Intl",
-            KFTY: "Fulton County Airport (Brown Field)",
-            KLZU: "Gwinnett County Airport (Briscoe Field)",
-            KRYY: "Cobb County Intl (McCollum Field)",
-            KMGE: "Dobbins Air Reserve Base",
-            KJCA: "Gold Comet Field",
-            KWDR: "Winder-Barrow Airport",
-            KCCO: "Newnan-Coweta County Airport",
-            KGVL: "Lee Gilmer Memorial Airport",
-            KVPC: "Cartersville Airport",
-            KHMP: "Hampton-Varnville Airport",
-            KLGC: "LaGrange-Callaway Airport",
-            // Georgia
-            KSAV: "Savannah/Hilton Head Intl",
-            KAGS: "Augusta Regional Airport",
-            KMCN: "Middle Georgia Regional Airport",
-            KABY: "Southwest Georgia Regional Airport",
-            KVLD: "Valdosta Regional Airport",
-            KCSG: "Columbus Metropolitan Airport",
-            // Major US hubs
-            KJFK: "John F. Kennedy Intl",
-            KLGA: "LaGuardia Airport",
-            KEWR: "Newark Liberty Intl",
-            KORD: "O'Hare Intl",
-            KMDW: "Chicago Midway Intl",
-            KLAX: "Los Angeles Intl",
-            KSFO: "San Francisco Intl",
-            KSJC: "San Jose Intl",
-            KOAK: "Oakland Intl",
-            KSEA: "Seattle-Tacoma Intl",
-            KDEN: "Denver Intl",
-            KDFW: "Dallas/Fort Worth Intl",
-            KDAL: "Dallas Love Field",
-            KIAH: "George Bush Intercontinental",
-            KHOU: "William P. Hobby Airport",
-            KAUS: "Austin-Bergstrom Intl",
-            KSAT: "San Antonio Intl",
-            KMIA: "Miami Intl",
-            KFLL: "Fort Lauderdale-Hollywood Intl",
-            KTPA: "Tampa Intl",
-            KMCO: "Orlando Intl",
-            KJAX: "Jacksonville Intl",
-            KPBI: "Palm Beach Intl",
-            KSRQ: "Sarasota-Bradenton Intl",
-            KRSW: "Southwest Florida Intl",
-            KBOS: "Boston Logan Intl",
-            KPHL: "Philadelphia Intl",
-            KBWI: "Baltimore/Washington Intl",
-            KDCA: "Ronald Reagan Washington National",
-            KIAD: "Washington Dulles Intl",
-            KCLT: "Charlotte Douglas Intl",
-            KRDU: "Raleigh-Durham Intl",
-            KGSO: "Piedmont Triad Intl",
-            KMYR: "Myrtle Beach Intl",
-            KCHS: "Charleston Intl",
-            KBNA: "Nashville Intl",
-            KMEM: "Memphis Intl",
-            KBHM: "Birmingham-Shuttlesworth Intl",
-            KHSV: "Huntsville Intl",
-            KMOB: "Mobile Regional Airport",
-            KMSY: "Louis Armstrong New Orleans Intl",
-            KSTL: "St. Louis Lambert Intl",
-            KMCI: "Kansas City Intl",
-            KMSP: "Minneapolis-Saint Paul Intl",
-            KDTW: "Detroit Metropolitan Wayne County",
-            KCLE: "Cleveland Hopkins Intl",
-            KCMH: "John Glenn Columbus Intl",
-            KCVG: "Cincinnati/Northern Kentucky Intl",
-            KIND: "Indianapolis Intl",
-            KPIT: "Pittsburgh Intl",
-            KLAS: "Harry Reid Intl (Las Vegas)",
-            KPHX: "Phoenix Sky Harbor Intl",
-            KTUS: "Tucson Intl",
-            KABQ: "Albuquerque Intl Sunport",
-            KSLC: "Salt Lake City Intl",
-            KPDX: "Portland Intl",
-            KSAN: "San Diego Intl",
-            KONT: "Ontario Intl",
-            KBUR: "Hollywood Burbank Airport",
-            KSNA: "John Wayne Airport",
-            PANC: "Ted Stevens Anchorage Intl",
-            PHNL: "Daniel K. Inouye Intl (Honolulu)",
-            // General aviation / regional near Southeast
-            KTEB: "Teterboro Airport",
-            KHPN: "Westchester County Airport",
-            KPWK: "Chicago Executive Airport",
-            KAPA: "Centennial Airport (Denver)",
-            KVNY: "Van Nuys Airport",
-            KSDL: "Scottsdale Airport",
-            KOBE: "Okeechobee County Airport",
-            KOPF: "Miami-Opa Locka Executive",
-            KFXE: "Fort Lauderdale Executive",
-            KPIE: "St. Pete-Clearwater Intl",
-            KORL: "Orlando Executive Airport",
-            KDAB: "Daytona Beach Intl",
-            KGNV: "Gainesville Regional Airport",
-            KTLH: "Tallahassee Intl",
-            KPNS: "Pensacola Intl",
-            KECP: "Northwest Florida Beaches Intl",
-            KVPS: "Destin-Fort Walton Beach Airport",
-            KCHA: "Chattanooga Metropolitan Airport",
-            KTYS: "McGhee Tyson Airport (Knoxville)",
-            KTRI: "Tri-Cities Airport (TN/VA)",
-            KAVL: "Asheville Regional Airport",
-            KGSP: "Greenville-Spartanburg Intl",
-            KCAE: "Columbia Metropolitan Airport",
-            KILM: "Wilmington Intl (NC)",
-            KORF: "Norfolk Intl",
-            KRIC: "Richmond Intl",
-            KCHO: "Charlottesville-Albemarle Airport",
-            KROA: "Roanoke-Blacksburg Regional",
-            KLEX: "Blue Grass Airport (Lexington)",
-            KSDF: "Louisville Muhammad Ali Intl",
-            // Canada
-            CYYZ: "Toronto Pearson Intl",
-            CYUL: "Montreal-Trudeau Intl",
-            CYVR: "Vancouver Intl",
-            CYOW: "Ottawa Macdonald-Cartier Intl",
-            CYWG: "Winnipeg James Armstrong Richardson Intl",
-            CYEG: "Edmonton Intl",
-            CYYC: "Calgary Intl",
-            // Mexico / Caribbean
-            MMMX: "Mexico City Intl",
-            MMUN: "Cancun Intl",
-            MKJP: "Norman Manley Intl (Kingston)",
-            TNCM: "Princess Juliana Intl (St. Maarten)",
-            TBPB: "Grantley Adams Intl (Barbados)",
-            TIST: "Cyril E. King Airport (St. Thomas)",
-            TJSJ: "Luis Munoz Marin Intl (San Juan)",
-            MYNN: "Lynden Pindling Intl (Nassau)",
-            // Europe
-            EGLL: "London Heathrow",
-            EGKK: "London Gatwick",
-            LFPG: "Paris Charles de Gaulle",
-            EDDF: "Frankfurt am Main",
-            EHAM: "Amsterdam Schiphol",
-            LEMD: "Madrid Barajas",
-            LIRF: "Rome Fiumicino",
-            EDDM: "Munich Airport",
-            LSZH: "Zurich Airport",
-            EIDW: "Dublin Airport",
-        };
+        const airportNameCache = {};
 
-        function airportDisplay(code) {
-            if (!code) return '—';
-            const name = AIRPORTS[code];
-            if (name) return `<span title="${name}">${code}</span>`;
-            return code;
+        async function lookupAirport(code) {
+            if (!code) return '';
+            if (code in airportNameCache) return airportNameCache[code];
+            try {
+                const res = await fetch(`/airport?code=${encodeURIComponent(code)}`);
+                if (!res.ok) return '';
+                const data = await res.json();
+                airportNameCache[code] = data.name || '';
+                return airportNameCache[code];
+            } catch {
+                return '';
+            }
         }
 
         function formatTime(unix) {
@@ -328,7 +191,7 @@
             });
         }
 
-        function renderRows(flights, tbody, timeField, airportField) {
+        async function renderRows(flights, tbody, timeField, airportField) {
             if (!flights || flights.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="no-flights">No flights</td></tr>';
                 return;
@@ -336,15 +199,23 @@
 
             flights.sort((a, b) => (a[timeField] || 0) - (b[timeField] || 0));
 
+            // Collect unique airport codes and fetch names in parallel
+            const codes = [...new Set(flights.map(f => f[airportField]).filter(Boolean))];
+            await Promise.all(codes.map(code => lookupAirport(code)));
+
             tbody.innerHTML = flights.map(f => {
                 const time = formatTime(f[timeField]);
                 const callsign = (f.callsign || '').trim() || '—';
-                const airport = airportDisplay(f[airportField]);
+                const code = f[airportField] || '';
+                const name = airportNameCache[code] || '';
+                const airportCell = code
+                    ? (name ? `<span title="${name}">${code}</span>` : code)
+                    : '—';
                 const icao24 = (f.icao24 || '').toUpperCase();
                 return `<tr>
                     <td>${time}</td>
                     <td>${callsign}</td>
-                    <td>${airport}</td>
+                    <td>${airportCell}</td>
                     <td>${icao24}</td>
                 </tr>`;
             }).join('');
@@ -368,8 +239,10 @@
                     arrRes.json()
                 ]);
 
-                renderRows(departures, depBody, 'firstSeen', 'estArrivalAirport');
-                renderRows(arrivals, arrBody, 'lastSeen', 'estDepartureAirport');
+                await Promise.all([
+                    renderRows(departures, depBody, 'firstSeen', 'estArrivalAirport'),
+                    renderRows(arrivals, arrBody, 'lastSeen', 'estDepartureAirport')
+                ]);
             } catch (err) {
                 console.error('Refresh error:', err);
                 depBody.innerHTML = '<tr><td colspan="4" class="error-msg">Error loading data</td></tr>';
