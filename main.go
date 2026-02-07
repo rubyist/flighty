@@ -251,7 +251,7 @@ func fetchSkyVectorURL(code string) string {
 	return ""
 }
 
-var icaoPattern = regexp.MustCompile(`^[A-Z]{4}$`)
+var airportCodePattern = regexp.MustCompile(`^[A-Z0-9]{3,4}$`)
 
 func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 		}
 
 		code := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("code")))
-		if !icaoPattern.MatchString(code) {
+		if !airportCodePattern.MatchString(code) {
 			http.Error(w, "invalid airport code", http.StatusBadRequest)
 			return
 		}
@@ -305,6 +305,15 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 
 		// Fetch SkyVector URL
 		info.URL = fetchSkyVectorURL(code)
+
+		// If AirportDB had no name, derive one from the SkyVector URL slug
+		if info.Name == "" && info.URL != "" {
+			parts := strings.Split(info.URL, "/")
+			if len(parts) > 0 {
+				slug := parts[len(parts)-1]
+				info.Name = strings.ReplaceAll(slug, "-", " ")
+			}
+		}
 
 		// Cache the result and persist to disk
 		cache.mu.Lock()
