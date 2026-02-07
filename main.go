@@ -94,6 +94,7 @@ type frontendFlight struct {
 	AircraftType string          `json:"aircraftType"`
 	Registration string          `json:"registration"`
 	Status       string          `json:"status"`
+	StatusTime   string          `json:"statusTime"`
 }
 
 type frontendResponse struct {
@@ -115,6 +116,12 @@ func toFrontendAirport(a aeroAirport) frontendAirport {
 }
 
 func toFrontendDeparture(f aeroFlight) frontendFlight {
+	var statusTime string
+	if strings.Contains(strings.ToLower(f.Status), "arrived") {
+		statusTime = firstNonEmpty(f.ActualOn, f.ActualIn)
+	} else {
+		statusTime = firstNonEmpty(f.ScheduledOff, f.ScheduledOut)
+	}
 	return frontendFlight{
 		Ident:        f.Ident,
 		FaFlightID:   f.FaFlightID,
@@ -124,10 +131,17 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
+		StatusTime:   statusTime,
 	}
 }
 
 func toFrontendArrival(f aeroFlight) frontendFlight {
+	var statusTime string
+	if strings.Contains(strings.ToLower(f.Status), "arrived") {
+		statusTime = firstNonEmpty(f.ActualOn, f.ActualIn)
+	} else {
+		statusTime = firstNonEmpty(f.ScheduledOn, f.ScheduledIn)
+	}
 	return frontendFlight{
 		Ident:        f.Ident,
 		FaFlightID:   f.FaFlightID,
@@ -137,6 +151,7 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
+		StatusTime:   statusTime,
 	}
 }
 

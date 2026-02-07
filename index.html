@@ -116,6 +116,16 @@
         .status-enroute { color: #4a6d8a; }
         .status-scheduled { color: #8a7a2e; }
 
+        .status-cell {
+            display: flex;
+            justify-content: space-between;
+            gap: 1em;
+        }
+
+        .status-time {
+            white-space: nowrap;
+        }
+
         tr.next-up {
             border-left: 3px solid #8b5a2b;
             background: rgba(139, 90, 43, 0.08);
@@ -251,6 +261,7 @@
                     : statusLower.includes('scheduled') ? 'status-scheduled'
                     : '';
                 const status = escapeHtml(statusText);
+                const statusTime = f.statusTime ? formatTime(f.statusTime) : '';
                 const isOverhead = overheadIds && overheadIds.has(f.faFlightId);
                 const classes = [];
                 if (i === nextIdx) classes.push('next-up');
@@ -262,7 +273,7 @@
                     <td>${identCell}</td>
                     <td>${airportCell}</td>
                     <td>${aircraft}</td>
-                    <td class="${statusClass}">${status}</td>
+                    <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time">(${statusTime})</span>` : ''}</span></td>
                 </tr>`;
             }).join('');
         }
