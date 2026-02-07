@@ -1,5 +1,4 @@
 {
   "aeroApiKey": "your-aeroapi-key",
-  "airportDbToken": "your-airportdb-api-token",
   "homeAirport": "DTW"
 }

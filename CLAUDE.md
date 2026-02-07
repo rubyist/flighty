@@ -18,7 +18,6 @@ go build -o flighty main.go
 
 Requires `config.json` (gitignored) — copy `config-example.json` and fill in real values:
 - `aeroApiKey` — FlightAware AeroAPI key
-- `airportDbToken` — AirportDB API token
 
 No external Go dependencies — uses only the standard library.
 
@@ -29,7 +28,7 @@ The entire backend is `main.go` (~300 lines) and the frontend is `index.html` (~
 **Backend (main.go):**
 - HTTP server on port 8080 with four routes: `/` (serves index.html), `/flights`, `/airport`, `/config`
 - Single `/flights` endpoint calls AeroAPI `/airports/{id}/flights` and returns combined departures + arrivals
-- Airport info lookup with three-tier fallback: in-memory cache → AirportDB API → SkyVector API
+- Airport info lookup with three-tier fallback: in-memory cache → AeroAPI → SkyVector API
 - Airport cache uses `sync.RWMutex` and persists to `airport-cache.json`
 - Factory functions (`makeFlightsHandler`, `makeAirportHandler`) create closures that capture shared state
 
@@ -43,6 +42,5 @@ The entire backend is `main.go` (~300 lines) and the frontend is `index.html` (~
 
 | Service | Purpose | Auth |
 |---------|---------|------|
-| FlightAware AeroAPI | Flight departures/arrivals | API key (`x-apikey` header) |
-| AirportDB | Airport names/metadata | API token |
+| FlightAware AeroAPI | Flight departures/arrivals + airport info | API key (`x-apikey` header) |
 | SkyVector | Airport page links (fallback) | None |

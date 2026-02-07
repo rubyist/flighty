@@ -13,15 +13,11 @@ import (
 	"time"
 )
 
-const (
-	aeroAPIBase  = "https://aeroapi.flightaware.com/aeroapi"
-	airportDBAPI = "https://airportdb.io/api/v1/airport"
-)
+const aeroAPIBase = "https://aeroapi.flightaware.com/aeroapi"
 
 type config struct {
-	AeroAPIKey     string `json:"aeroApiKey"`
-	AirportDBToken string `json:"airportDbToken"`
-	HomeAirport    string `json:"homeAirport"`
+	AeroAPIKey  string `json:"aeroApiKey"`
+	HomeAirport string `json:"homeAirport"`
 }
 
 func loadConfig(path string) (config, error) {
@@ -35,9 +31,6 @@ func loadConfig(path string) (config, error) {
 	}
 	if cfg.AeroAPIKey == "" {
 		return config{}, fmt.Errorf("aeroApiKey must be set in config file")
-	}
-	if cfg.AirportDBToken == "" {
-		return config{}, fmt.Errorf("airportDbToken must be set in config file")
 	}
 	if cfg.HomeAirport == "" {
 		return config{}, fmt.Errorf("homeAirport must be set in config file")
@@ -327,7 +320,7 @@ func fetchSkyVectorURL(code string) string {
 
 var airportCodePattern = regexp.MustCompile(`^[A-Z0-9]{3,4}$`)
 
-func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
+func makeAirportHandler(apiKey string, cache *airportCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCORS(w)
 		if r.Method == http.MethodOptions {
@@ -355,9 +348,16 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 			return
 		}
 
-		// Fetch from AirportDB
-		apiURL := fmt.Sprintf("%s/%s?apiToken=%s", airportDBAPI, code, apiToken)
-		resp, err := http.Get(apiURL)
+		// Fetch from AeroAPI
+		apiURL := fmt.Sprintf("%s/airports/%s", aeroAPIBase, code)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, apiURL, nil)
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("x-apikey", apiKey)
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			log.Printf("Error fetching airport %s: %v", code, err)
 			http.Error(w, "failed to fetch airport data", http.StatusBadGateway)
@@ -380,7 +380,7 @@ func makeAirportHandler(apiToken string, cache *airportCache) http.HandlerFunc {
 		// Fetch SkyVector URL
 		info.URL = fetchSkyVectorURL(code)
 
-		// If AirportDB had no name, derive one from the SkyVector URL slug
+		// If AeroAPI had no name, derive one from the SkyVector URL slug
 		if info.Name == "" && info.URL != "" {
 			parts := strings.Split(info.URL, "/")
 			if len(parts) > 0 {
@@ -477,7 +477,7 @@ func main() {
 	})
 	http.HandleFunc("/flight/map", makeFlightMapHandler(cfg.AeroAPIKey))
 	http.HandleFunc("/flights", makeFlightsHandler(cfg.AeroAPIKey, cfg.HomeAirport))
-	http.HandleFunc("/airport", makeAirportHandler(cfg.AirportDBToken, ac))
+	http.HandleFunc("/airport", makeAirportHandler(cfg.AeroAPIKey, ac))
 
 	log.Println("Server listening on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
