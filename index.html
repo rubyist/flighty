@@ -58,14 +58,7 @@
             letter-spacing: 3px;
             text-transform: uppercase;
             color: #fff;
-        }
-
-        .board-header.departures {
-            background: #2e7d32;
-        }
-
-        .board-header.arrivals {
-            background: #1565c0;
+            background: #333;
         }
 
         table {
@@ -142,37 +135,20 @@
     <div class="last-updated" id="last-updated"></div>
 
     <div class="board">
-        <div class="board-header departures">Departures</div>
+        <div class="board-header">Flights</div>
         <table>
             <thead>
                 <tr>
+                    <th> </th>
                     <th>Time</th>
                     <th>Flight</th>
-                    <th>To</th>
+                    <th>Airport</th>
                     <th>Aircraft</th>
                     <th>Status</th>
                 </tr>
             </thead>
-            <tbody id="departures-body">
-                <tr><td colspan="5" class="no-flights">Loading...</td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="board">
-        <div class="board-header arrivals">Arrivals</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Flight</th>
-                    <th>From</th>
-                    <th>Aircraft</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="arrivals-body">
-                <tr><td colspan="5" class="no-flights">Loading...</td></tr>
+            <tbody id="flights-body">
+                <tr><td colspan="6" class="no-flights">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -220,9 +196,9 @@
             return div.innerHTML;
         }
 
-        function renderRows(flights, tbody, airportField) {
+        function renderFlights(flights, tbody) {
             if (!flights || flights.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="no-flights">No flights</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
                 return;
             }
 
@@ -243,6 +219,7 @@
             }
 
             tbody.innerHTML = flights.map((f, i) => {
+                const icon = f.direction === 'dep' ? '🛫' : '🛬';
                 const time = formatTime(f.time);
                 const identText = escapeHtml(f.ident || '—');
                 let identCell = identText;
@@ -250,6 +227,7 @@
                     const encoded = btoa(JSON.stringify(f));
                     identCell = `<a href="/flight?id=${encodeURIComponent(f.faFlightId)}&data=${encodeURIComponent(encoded)}">${identText}</a>`;
                 }
+                const airportField = f.direction === 'dep' ? 'destination' : 'origin';
                 const apt = f[airportField] || {};
                 const code = apt.code || '';
                 const name = apt.name || '';
@@ -263,6 +241,7 @@
                 const status = escapeHtml(f.status || '');
                 const cls = i === nextIdx ? ' class="next-up"' : '';
                 return `<tr${cls}>
+                    <td>${icon}</td>
                     <td>${time}</td>
                     <td>${identCell}</td>
                     <td>${airportCell}</td>
@@ -273,20 +252,19 @@
         }
 
         async function refresh() {
-            const depBody = document.getElementById('departures-body');
-            const arrBody = document.getElementById('arrivals-body');
+            const tbody = document.getElementById('flights-body');
 
             try {
                 const res = await fetch('/flights');
                 if (!res.ok) throw new Error('Failed to fetch flights');
                 const data = await res.json();
 
-                renderRows(data.departures, depBody, 'destination');
-                renderRows(data.arrivals, arrBody, 'origin');
+                const deps = (data.departures || []).map(f => ({ ...f, direction: 'dep' }));
+                const arrs = (data.arrivals || []).map(f => ({ ...f, direction: 'arr' }));
+                renderFlights(deps.concat(arrs), tbody);
             } catch (err) {
                 console.error('Refresh error:', err);
-                depBody.innerHTML = '<tr><td colspan="5" class="error-msg">Error loading data</td></tr>';
-                arrBody.innerHTML = '<tr><td colspan="5" class="error-msg">Error loading data</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="error-msg">Error loading data</td></tr>';
             }
 
             document.getElementById('last-updated').textContent = 'Last updated: ' + formatNow();
@@ -316,7 +294,7 @@
                 document.getElementById('airport-title').textContent = 'Flighty';
             }
             refresh();
-            setInterval(refresh, 60 * 60 * 1000);
+            setInterval(refresh, 5 * 60 * 1000);
         })();
     </script>
 </body>
