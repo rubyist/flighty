@@ -6,26 +6,22 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	tokenURL     = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
-	openskyAPI   = "https://opensky-network.org/api/flights"
+	aeroAPIBase  = "https://aeroapi.flightaware.com/aeroapi"
 	airportDBAPI = "https://airportdb.io/api/v1/airport"
 )
 
 type config struct {
-	OpenSkyClientID     string `json:"openskyClientId"`
-	OpenSkyClientSecret string `json:"openskyClientSecret"`
-	AirportDBToken      string `json:"airportDbToken"`
-	HomeAirport         string `json:"homeAirport"`
+	AeroAPIKey     string `json:"aeroApiKey"`
+	AirportDBToken string `json:"airportDbToken"`
+	HomeAirport    string `json:"homeAirport"`
 }
 
 func loadConfig(path string) (config, error) {
@@ -37,8 +33,8 @@ func loadConfig(path string) (config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return config{}, fmt.Errorf("parsing config: %w", err)
 	}
-	if cfg.OpenSkyClientID == "" || cfg.OpenSkyClientSecret == "" {
-		return config{}, fmt.Errorf("openskyClientId and openskyClientSecret must be set in config file")
+	if cfg.AeroAPIKey == "" {
+		return config{}, fmt.Errorf("aeroApiKey must be set in config file")
 	}
 	if cfg.AirportDBToken == "" {
 		return config{}, fmt.Errorf("airportDbToken must be set in config file")
@@ -49,61 +45,104 @@ func loadConfig(path string) (config, error) {
 	return cfg, nil
 }
 
-type tokenResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
+// AeroAPI response types
+
+type aeroAirport struct {
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	AirportInfoURL string `json:"airport_info_url"`
 }
 
-type tokenCache struct {
-	mu        sync.Mutex
-	token     string
-	expiresAt time.Time
-	cfg       config
+type aeroFlight struct {
+	Ident        string      `json:"ident"`
+	Origin       aeroAirport `json:"origin"`
+	Destination  aeroAirport `json:"destination"`
+	ScheduledOut string      `json:"scheduled_out"`
+	ScheduledIn  string      `json:"scheduled_in"`
+	ActualOut    string      `json:"actual_out"`
+	ActualIn     string      `json:"actual_in"`
+	ActualOff    string      `json:"actual_off"`
+	ActualOn     string      `json:"actual_on"`
+	AircraftType string      `json:"aircraft_type"`
+	Registration string      `json:"registration"`
+	Status       string      `json:"status"`
 }
 
-func (tc *tokenCache) getToken() (string, error) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
+type aeroFlightsResponse struct {
+	Departures          []aeroFlight `json:"departures"`
+	Arrivals            []aeroFlight `json:"arrivals"`
+	ScheduledDepartures []aeroFlight `json:"scheduled_departures"`
+	ScheduledArrivals   []aeroFlight `json:"scheduled_arrivals"`
+	Links               interface{}  `json:"links"`
+	NumPages            int          `json:"num_pages"`
+}
 
-	if tc.token != "" && time.Now().Before(tc.expiresAt) {
-		return tc.token, nil
+// Simplified flight for the frontend
+
+type frontendAirport struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+type frontendFlight struct {
+	Ident        string          `json:"ident"`
+	Origin       frontendAirport `json:"origin"`
+	Destination  frontendAirport `json:"destination"`
+	Time         string          `json:"time"`
+	AircraftType string          `json:"aircraftType"`
+	Registration string          `json:"registration"`
+	Status       string          `json:"status"`
+}
+
+type frontendResponse struct {
+	Departures []frontendFlight `json:"departures"`
+	Arrivals   []frontendFlight `json:"arrivals"`
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
 	}
+	return ""
+}
 
-	resp, err := http.PostForm(tokenURL, url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {tc.cfg.OpenSkyClientID},
-		"client_secret": {tc.cfg.OpenSkyClientSecret},
-	})
-	if err != nil {
-		return "", fmt.Errorf("requesting token: %w", err)
+func toFrontendAirport(a aeroAirport) frontendAirport {
+	return frontendAirport{Code: a.Code, Name: a.Name}
+}
+
+func toFrontendDeparture(f aeroFlight) frontendFlight {
+	return frontendFlight{
+		Ident:        f.Ident,
+		Origin:       toFrontendAirport(f.Origin),
+		Destination:  toFrontendAirport(f.Destination),
+		Time:         firstNonEmpty(f.ActualOff, f.ScheduledOut, f.ActualOut),
+		AircraftType: f.AircraftType,
+		Registration: f.Registration,
+		Status:       f.Status,
 	}
-	defer resp.Body.Close()
+}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("token request failed (%d): %s", resp.StatusCode, body)
+func toFrontendArrival(f aeroFlight) frontendFlight {
+	return frontendFlight{
+		Ident:        f.Ident,
+		Origin:       toFrontendAirport(f.Origin),
+		Destination:  toFrontendAirport(f.Destination),
+		Time:         firstNonEmpty(f.ActualOn, f.ScheduledIn, f.ActualIn),
+		AircraftType: f.AircraftType,
+		Registration: f.Registration,
+		Status:       f.Status,
 	}
-
-	var tr tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
-		return "", fmt.Errorf("decoding token response: %w", err)
-	}
-
-	tc.token = tr.AccessToken
-	// Refresh 60 seconds before expiry to avoid edge cases
-	tc.expiresAt = time.Now().Add(time.Duration(tr.ExpiresIn-60) * time.Second)
-
-	log.Printf("Obtained new access token (expires in %ds)", tr.ExpiresIn)
-	return tc.token, nil
 }
 
 func setCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
-func makeFlightHandler(tc *tokenCache, flightType string, airport string) http.HandlerFunc {
+func makeFlightsHandler(apiKey string, airport string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setCORS(w)
 
@@ -118,51 +157,32 @@ func makeFlightHandler(tc *tokenCache, flightType string, airport string) http.H
 
 		now := time.Now()
 		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		defaultBegin := startOfDay.Unix()
-		defaultEnd := now.Unix()
+		endOfDay := startOfDay.Add(24 * time.Hour)
 
-		begin := defaultBegin
-		end := defaultEnd
-
-		if b := r.URL.Query().Get("begin"); b != "" {
-			parsed, err := strconv.ParseInt(b, 10, 64)
-			if err != nil {
-				http.Error(w, "invalid begin parameter", http.StatusBadRequest)
-				return
-			}
-			begin = parsed
+		start := r.URL.Query().Get("start")
+		end := r.URL.Query().Get("end")
+		if start == "" {
+			start = startOfDay.UTC().Format(time.RFC3339)
 		}
-		if e := r.URL.Query().Get("end"); e != "" {
-			parsed, err := strconv.ParseInt(e, 10, 64)
-			if err != nil {
-				http.Error(w, "invalid end parameter", http.StatusBadRequest)
-				return
-			}
-			end = parsed
+		if end == "" {
+			end = endOfDay.UTC().Format(time.RFC3339)
 		}
 
-		token, err := tc.getToken()
-		if err != nil {
-			log.Printf("Error getting token: %v", err)
-			http.Error(w, "failed to authenticate with OpenSky", http.StatusInternalServerError)
-			return
-		}
-
-		apiURL := fmt.Sprintf("%s/%s?airport=%s&begin=%d&end=%d",
-			openskyAPI, flightType, airport, begin, end)
+		apiURL := fmt.Sprintf("%s/airports/%s/flights?start=%s&end=%s",
+			aeroAPIBase, airport, start, end)
 
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, apiURL, nil)
 		if err != nil {
 			http.Error(w, "failed to create request", http.StatusInternalServerError)
 			return
 		}
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("x-apikey", apiKey)
 
-		log.Printf("Fetching %s: %s", flightType, apiURL)
+		log.Printf("Fetching flights: %s", apiURL)
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			log.Printf("Error fetching %s: %v", flightType, err)
+			log.Printf("Error fetching flights: %v", err)
 			http.Error(w, "failed to fetch flight data", http.StatusBadGateway)
 			return
 		}
@@ -174,22 +194,63 @@ func makeFlightHandler(tc *tokenCache, flightType string, airport string) http.H
 			return
 		}
 
-		// OpenSky returns 404 when no flights are found for the given time range
-		if resp.StatusCode == http.StatusNotFound {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte("[]"))
-			return
-		}
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("OpenSky API error (%d): %s", resp.StatusCode, body)
-			http.Error(w, fmt.Sprintf("OpenSky API error: %d", resp.StatusCode), resp.StatusCode)
+			log.Printf("AeroAPI error (%d): %s", resp.StatusCode, body)
+			http.Error(w, fmt.Sprintf("AeroAPI error: %d", resp.StatusCode), resp.StatusCode)
 			return
 		}
 
+		var aeroResp aeroFlightsResponse
+		if err := json.Unmarshal(body, &aeroResp); err != nil {
+			log.Printf("Error parsing AeroAPI response: %v", err)
+			http.Error(w, "failed to parse flight data", http.StatusInternalServerError)
+			return
+		}
+
+		// Combine scheduled + actual flights for each direction, deduplicating by ident+time
+		var departures []frontendFlight
+		seen := make(map[string]bool)
+		for _, list := range [][]aeroFlight{aeroResp.Departures, aeroResp.ScheduledDepartures} {
+			for _, f := range list {
+				ff := toFrontendDeparture(f)
+				key := ff.Ident + "|" + ff.Time
+				if !seen[key] {
+					seen[key] = true
+					departures = append(departures, ff)
+				}
+			}
+		}
+
+		var arrivals []frontendFlight
+		seen = make(map[string]bool)
+		for _, list := range [][]aeroFlight{aeroResp.Arrivals, aeroResp.ScheduledArrivals} {
+			for _, f := range list {
+				ff := toFrontendArrival(f)
+				key := ff.Ident + "|" + ff.Time
+				if !seen[key] {
+					seen[key] = true
+					arrivals = append(arrivals, ff)
+				}
+			}
+		}
+
+		result := frontendResponse{
+			Departures: departures,
+			Arrivals:   arrivals,
+		}
+		if result.Departures == nil {
+			result.Departures = []frontendFlight{}
+		}
+		if result.Arrivals == nil {
+			result.Arrivals = []frontendFlight{}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(body)
+		json.NewEncoder(w).Encode(result)
 	}
 }
+
+// Airport lookup (unchanged)
 
 const (
 	airportCacheFile = "airport-cache.json"
@@ -340,9 +401,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
-	log.Printf("Loaded config for OpenSky client: %s", cfg.OpenSkyClientID)
+	log.Printf("Loaded config for home airport: %s", cfg.HomeAirport)
 
-	tc := &tokenCache{cfg: cfg}
 	ac := loadAirportCache()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -353,8 +413,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"homeAirport": cfg.HomeAirport})
 	})
-	http.HandleFunc("/departures", makeFlightHandler(tc, "departure", cfg.HomeAirport))
-	http.HandleFunc("/arrivals", makeFlightHandler(tc, "arrival", cfg.HomeAirport))
+	http.HandleFunc("/flights", makeFlightsHandler(cfg.AeroAPIKey, cfg.HomeAirport))
 	http.HandleFunc("/airport", makeAirportHandler(cfg.AirportDBToken, ac))
 
 	log.Println("Server listening on :8080")
