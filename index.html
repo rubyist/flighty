@@ -143,6 +143,10 @@
             padding-left: 12px;
         }
 
+        tr.arrived td {
+            opacity: 0.5;
+        }
+
         .time-actual    { color: #4e7a56; }
         .time-estimated { color: #4a6d8a; }
         .time-scheduled { color: #8a7a2e; }
@@ -282,6 +286,7 @@
                 const classes = [];
                 if (i === nextIdx) classes.push('next-up');
                 if (isOverhead) classes.push('overhead');
+                if (statusLower.includes('arrived')) classes.push('arrived');
                 const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
                 return `<tr${cls}>
                     <td>${icon}</td>
