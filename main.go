@@ -149,8 +149,8 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		}
 	} else if strings.Contains(strings.ToLower(f.Status), "en route") {
 		statusTime, statusTimeSource = firstNonEmptyWithSource(
-			labeledVal{f.ScheduledOn, "S"},
 			labeledVal{f.EstimatedOn, "E"},
+			labeledVal{f.ScheduledOn, "S"},
 		)
 	} else {
 		statusTime = f.ScheduledOff
@@ -194,8 +194,8 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		}
 	} else if strings.Contains(strings.ToLower(f.Status), "en route") {
 		statusTime, statusTimeSource = firstNonEmptyWithSource(
-			labeledVal{f.ScheduledOn, "S"},
 			labeledVal{f.EstimatedOn, "E"},
+			labeledVal{f.ScheduledOn, "S"},
 		)
 	} else {
 		statusTime = f.ScheduledOff
