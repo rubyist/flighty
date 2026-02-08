@@ -2,8 +2,6 @@
 
 Real-time flight departure/arrival board for any airport. A Go backend proxies the FlightAware AeroAPI and serves a single-page frontend with an airport-style display.
 
-![Flighty screenshot](flighty-screenshot.png)
-
 ## Setup
 
 1. Get a [FlightAware AeroAPI](https://www.flightaware.com/aeroapi/) key.
