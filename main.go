@@ -56,6 +56,10 @@ type aeroFlight struct {
 	FaFlightID   string      `json:"fa_flight_id"`
 	Origin       aeroAirport `json:"origin"`
 	Destination  aeroAirport `json:"destination"`
+	EstimatedOut string      `json:"estimated_out"`
+	EstimatedOff string      `json:"estimated_off"`
+	EstimatedOn  string      `json:"estimated_on"`
+	EstimatedIn  string      `json:"estimated_in"`
 	ScheduledOut string      `json:"scheduled_out"`
 	ScheduledOff string      `json:"scheduled_off"`
 	ScheduledIn  string      `json:"scheduled_in"`
@@ -127,7 +131,7 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOff, f.ScheduledOff, f.ScheduledOut, f.ActualOut),
+		Time:         firstNonEmpty(f.ActualOff, f.EstimatedOff, f.ScheduledOff, f.ActualOut, f.EstimatedOut, f.ScheduledOut),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
@@ -147,7 +151,7 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOn, f.ScheduledOn, f.ScheduledIn, f.ActualIn),
+		Time:         firstNonEmpty(f.ActualOn, f.EstimatedOn, f.ScheduledOn, f.ActualIn, f.EstimatedIn, f.ScheduledIn),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
