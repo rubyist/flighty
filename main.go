@@ -93,6 +93,12 @@ type frontendFlight struct {
 	Registration string          `json:"registration"`
 	Status       string          `json:"status"`
 	StatusTime   string          `json:"statusTime"`
+	ScheduledOff string          `json:"scheduledOff,omitempty"`
+	EstimatedOff string          `json:"estimatedOff,omitempty"`
+	ActualOff    string          `json:"actualOff,omitempty"`
+	ScheduledOn  string          `json:"scheduledOn,omitempty"`
+	EstimatedOn  string          `json:"estimatedOn,omitempty"`
+	ActualOn     string          `json:"actualOn,omitempty"`
 }
 
 type frontendResponse struct {
@@ -117,9 +123,11 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 	var statusTime string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
 		statusTime = f.ActualOn
+	} else if strings.Contains(strings.ToLower(f.Status), "en route"){
+		statusTime = firstNonEmpty(f.ScheduledOn, f.EstimatedOn)
 	} else {
 		statusTime = f.ScheduledOff
-	}
+  }
 	return frontendFlight{
 		Ident:        f.Ident,
 		FaFlightID:   f.FaFlightID,
@@ -130,6 +138,12 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		Registration: f.Registration,
 		Status:       f.Status,
 		StatusTime:   statusTime,
+		ScheduledOff: f.ScheduledOff,
+		EstimatedOff: f.EstimatedOff,
+		ActualOff:    f.ActualOff,
+		ScheduledOn:  f.ScheduledOn,
+		EstimatedOn:  f.EstimatedOn,
+		ActualOn:     f.ActualOn,
 	}
 }
 
@@ -137,8 +151,10 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 	var statusTime string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
 		statusTime = f.ActualOn
+	} else if strings.Contains(strings.ToLower(f.Status), "en route"){
+		statusTime = firstNonEmpty(f.ScheduledOn, f.EstimatedOn)
 	} else {
-		statusTime = f.ScheduledOn
+		statusTime = f.ScheduledOff
 	}
 	return frontendFlight{
 		Ident:        f.Ident,
@@ -150,6 +166,12 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		Registration: f.Registration,
 		Status:       f.Status,
 		StatusTime:   statusTime,
+		ScheduledOff: f.ScheduledOff,
+		EstimatedOff: f.EstimatedOff,
+		ActualOff:    f.ActualOff,
+		ScheduledOn:  f.ScheduledOn,
+		EstimatedOn:  f.EstimatedOn,
+		ActualOn:     f.ActualOn,
 	}
 }
 

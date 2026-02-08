@@ -176,14 +176,23 @@
                     return `<a href="${svURL}" target="_blank">${label}</a>`;
                 }
 
+                const timeFields = [
+                    ['Scheduled Off', flight.scheduledOff],
+                    ['Estimated Off', flight.estimatedOff],
+                    ['Actual Off', flight.actualOff],
+                    ['Scheduled On', flight.scheduledOn],
+                    ['Estimated On', flight.estimatedOn],
+                    ['Actual On', flight.actualOn],
+                ];
+
                 const rows = [
                     ['Flight', escapeHtml(ident)],
                     ['Origin', airportDisplay(originCode, originName)],
                     ['Destination', airportDisplay(destCode, destName)],
-                    ['Time', escapeHtml(formatTime(flight.time))],
                     ['Status', escapeHtml(flight.status || '—')],
                     ['Aircraft', escapeHtml(flight.aircraftType || '—')],
                     ['Registration', escapeHtml(flight.registration || '—')],
+                    ...timeFields.map(([label, iso]) => [label, iso ? escapeHtml(formatTime(iso)) : '--']),
                 ];
 
                 document.getElementById('info-section').innerHTML = '<div class="info-grid">' +
