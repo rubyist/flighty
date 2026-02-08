@@ -91,8 +91,10 @@ type frontendFlight struct {
 	Time         string          `json:"time"`
 	AircraftType string          `json:"aircraftType"`
 	Registration string          `json:"registration"`
-	Status       string          `json:"status"`
-	StatusTime   string          `json:"statusTime"`
+	Status           string `json:"status"`
+	StatusTime       string `json:"statusTime"`
+	TimeSource       string `json:"timeSource"`
+	StatusTimeSource string `json:"statusTimeSource"`
 	ScheduledOff string          `json:"scheduledOff,omitempty"`
 	EstimatedOff string          `json:"estimatedOff,omitempty"`
 	ActualOff    string          `json:"actualOff,omitempty"`
@@ -115,63 +117,110 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
+type labeledVal struct {
+	val, label string
+}
+
+func firstNonEmptyWithSource(pairs ...labeledVal) (string, string) {
+	for _, p := range pairs {
+		if p.val != "" {
+			return p.val, p.label
+		}
+	}
+	return "", ""
+}
+
 func toFrontendAirport(a aeroAirport) frontendAirport {
 	return frontendAirport{Code: a.Code, Name: a.Name}
 }
 
 func toFrontendDeparture(f aeroFlight) frontendFlight {
-	var statusTime string
+	timeVal, timeSource := firstNonEmptyWithSource(
+		labeledVal{f.ActualOff, "A"},
+		labeledVal{f.EstimatedOff, "E"},
+		labeledVal{f.ScheduledOff, "S"},
+	)
+
+	var statusTime, statusTimeSource string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
 		statusTime = f.ActualOn
-	} else if strings.Contains(strings.ToLower(f.Status), "en route"){
-		statusTime = firstNonEmpty(f.ScheduledOn, f.EstimatedOn)
+		if statusTime != "" {
+			statusTimeSource = "A"
+		}
+	} else if strings.Contains(strings.ToLower(f.Status), "en route") {
+		statusTime, statusTimeSource = firstNonEmptyWithSource(
+			labeledVal{f.ScheduledOn, "S"},
+			labeledVal{f.EstimatedOn, "E"},
+		)
 	} else {
 		statusTime = f.ScheduledOff
-  }
+		if statusTime != "" {
+			statusTimeSource = "S"
+		}
+	}
 	return frontendFlight{
-		Ident:        f.Ident,
-		FaFlightID:   f.FaFlightID,
-		Origin:       toFrontendAirport(f.Origin),
-		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOff, f.EstimatedOff, f.ScheduledOff),
-		AircraftType: f.AircraftType,
-		Registration: f.Registration,
-		Status:       f.Status,
-		StatusTime:   statusTime,
-		ScheduledOff: f.ScheduledOff,
-		EstimatedOff: f.EstimatedOff,
-		ActualOff:    f.ActualOff,
-		ScheduledOn:  f.ScheduledOn,
-		EstimatedOn:  f.EstimatedOn,
-		ActualOn:     f.ActualOn,
+		Ident:            f.Ident,
+		FaFlightID:       f.FaFlightID,
+		Origin:           toFrontendAirport(f.Origin),
+		Destination:      toFrontendAirport(f.Destination),
+		Time:             timeVal,
+		TimeSource:       timeSource,
+		AircraftType:     f.AircraftType,
+		Registration:     f.Registration,
+		Status:           f.Status,
+		StatusTime:       statusTime,
+		StatusTimeSource: statusTimeSource,
+		ScheduledOff:     f.ScheduledOff,
+		EstimatedOff:     f.EstimatedOff,
+		ActualOff:        f.ActualOff,
+		ScheduledOn:      f.ScheduledOn,
+		EstimatedOn:      f.EstimatedOn,
+		ActualOn:         f.ActualOn,
 	}
 }
 
 func toFrontendArrival(f aeroFlight) frontendFlight {
-	var statusTime string
+	timeVal, timeSource := firstNonEmptyWithSource(
+		labeledVal{f.ActualOn, "A"},
+		labeledVal{f.EstimatedOn, "E"},
+		labeledVal{f.ScheduledOn, "S"},
+	)
+
+	var statusTime, statusTimeSource string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
 		statusTime = f.ActualOn
-	} else if strings.Contains(strings.ToLower(f.Status), "en route"){
-		statusTime = firstNonEmpty(f.ScheduledOn, f.EstimatedOn)
+		if statusTime != "" {
+			statusTimeSource = "A"
+		}
+	} else if strings.Contains(strings.ToLower(f.Status), "en route") {
+		statusTime, statusTimeSource = firstNonEmptyWithSource(
+			labeledVal{f.ScheduledOn, "S"},
+			labeledVal{f.EstimatedOn, "E"},
+		)
 	} else {
 		statusTime = f.ScheduledOff
+		if statusTime != "" {
+			statusTimeSource = "S"
+		}
 	}
 	return frontendFlight{
-		Ident:        f.Ident,
-		FaFlightID:   f.FaFlightID,
-		Origin:       toFrontendAirport(f.Origin),
-		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOn, f.EstimatedOn, f.ScheduledOn),
-		AircraftType: f.AircraftType,
-		Registration: f.Registration,
-		Status:       f.Status,
-		StatusTime:   statusTime,
-		ScheduledOff: f.ScheduledOff,
-		EstimatedOff: f.EstimatedOff,
-		ActualOff:    f.ActualOff,
-		ScheduledOn:  f.ScheduledOn,
-		EstimatedOn:  f.EstimatedOn,
-		ActualOn:     f.ActualOn,
+		Ident:            f.Ident,
+		FaFlightID:       f.FaFlightID,
+		Origin:           toFrontendAirport(f.Origin),
+		Destination:      toFrontendAirport(f.Destination),
+		Time:             timeVal,
+		TimeSource:       timeSource,
+		AircraftType:     f.AircraftType,
+		Registration:     f.Registration,
+		Status:           f.Status,
+		StatusTime:       statusTime,
+		StatusTimeSource: statusTimeSource,
+		ScheduledOff:     f.ScheduledOff,
+		EstimatedOff:     f.EstimatedOff,
+		ActualOff:        f.ActualOff,
+		ScheduledOn:      f.ScheduledOn,
+		EstimatedOn:      f.EstimatedOn,
+		ActualOn:         f.ActualOn,
 	}
 }
 

@@ -142,6 +142,10 @@
         tr.overhead td:first-child {
             padding-left: 12px;
         }
+
+        .time-actual    { color: #4e7a56; }
+        .time-estimated { color: #4a6d8a; }
+        .time-scheduled { color: #8a7a2e; }
     </style>
 </head>
 <body>
@@ -212,6 +216,18 @@
             return div.innerHTML;
         }
 
+        function timeSourceClass(source) {
+            if (source === 'A') return 'time-actual';
+            if (source === 'E') return 'time-estimated';
+            return 'time-scheduled';
+        }
+
+        function timeSourceLabel(source) {
+            if (source === 'A') return 'Actual';
+            if (source === 'E') return 'Estimated';
+            return 'Scheduled';
+        }
+
         function renderFlights(flights, tbody, overheadIds) {
             if (!flights || flights.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
@@ -269,11 +285,11 @@
                 const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
                 return `<tr${cls}>
                     <td>${icon}</td>
-                    <td>${time}</td>
+                    <td><span class="${timeSourceClass(f.timeSource)}" title="${timeSourceLabel(f.timeSource)}">${time}</span></td>
                     <td>${identCell}</td>
                     <td>${airportCell}</td>
                     <td>${aircraft}</td>
-                    <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time">(${statusTime})</span>` : ''}</span></td>
+                    <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time ${timeSourceClass(f.statusTimeSource)}" title="${timeSourceLabel(f.statusTimeSource)}">(${statusTime})</span>` : ''}</span></td>
                 </tr>`;
             }).join('');
         }
