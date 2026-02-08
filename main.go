@@ -668,9 +668,6 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"homeAirport": cfg.HomeAirport})
 	})
-	http.HandleFunc("/flight", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "flight.html")
-	})
 	http.HandleFunc("/flight/map", makeFlightMapHandler(cfg.AeroAPIKey))
 	http.HandleFunc("/flights", makeFlightsHandler(cfg.AeroAPIKey, cfg.HomeAirport))
 	http.HandleFunc("/overhead", makeOverheadHandler(cfg.AeroAPIKey, cfg))
