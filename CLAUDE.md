@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Flighty is a real-time flight departure/arrival board for DeKalb-Peachtree Airport (KPDK). Go backend proxies the FlightAware AeroAPI and serves a single-page frontend with an airport-style display.
+Flighty is a real-time flight departure/arrival board for any airport. Go backend proxies the FlightAware AeroAPI and serves a single-page frontend with an airport-style display.
 
 ## Build and Run
 
