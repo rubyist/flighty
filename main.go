@@ -62,9 +62,11 @@ type aeroFlight struct {
 	ScheduledOn  string      `json:"scheduled_on"`
 	ActualOff    string      `json:"actual_off"`
 	ActualOn     string      `json:"actual_on"`
-	AircraftType string      `json:"aircraft_type"`
-	Registration string      `json:"registration"`
-	Status       string      `json:"status"`
+	AircraftType    string      `json:"aircraft_type"`
+	Registration    string      `json:"registration"`
+	ActualRunwayOff string      `json:"actual_runway_off"`
+	ActualRunwayOn  string      `json:"actual_runway_on"`
+	Status          string      `json:"status"`
 }
 
 type aeroFlightsResponse struct {
@@ -91,6 +93,7 @@ type frontendFlight struct {
 	Time         string          `json:"time"`
 	AircraftType string          `json:"aircraftType"`
 	Registration string          `json:"registration"`
+	Runway       string          `json:"runway,omitempty"`
 	Status           string `json:"status"`
 	StatusTime       string `json:"statusTime"`
 	TimeSource       string `json:"timeSource"`
@@ -167,6 +170,7 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 		TimeSource:       timeSource,
 		AircraftType:     f.AircraftType,
 		Registration:     f.Registration,
+		Runway:           f.ActualRunwayOff,
 		Status:           f.Status,
 		StatusTime:       statusTime,
 		StatusTimeSource: statusTimeSource,
@@ -212,6 +216,7 @@ func toFrontendArrival(f aeroFlight) frontendFlight {
 		TimeSource:       timeSource,
 		AircraftType:     f.AircraftType,
 		Registration:     f.Registration,
+		Runway:           f.ActualRunwayOn,
 		Status:           f.Status,
 		StatusTime:       statusTime,
 		StatusTimeSource: statusTimeSource,

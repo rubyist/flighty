@@ -285,12 +285,13 @@
                     <th>Time</th>
                     <th>Flight</th>
                     <th>Airport</th>
+                    <th>Runway</th>
                     <th>Aircraft</th>
                     <th>Status</th>
                 </tr>
             </thead>
             <tbody id="flights-body">
-                <tr><td colspan="6" class="no-flights">Loading...</td></tr>
+                <tr><td colspan="7" class="no-flights">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -392,6 +393,7 @@
                 <td><span class="${timeSourceClass(f.timeSource)}" title="${timeSourceLabel(f.timeSource)}">${time}</span></td>
                 <td>${identCell}</td>
                 <td>${airportCell}</td>
+                <td>${escapeHtml(f.runway || '')}</td>
                 <td>${aircraft}</td>
                 <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time ${timeSourceClass(f.statusTimeSource)}" title="${timeSourceLabel(f.statusTimeSource)}">(${statusTime})</span>` : ''}</span></td>
             </tr>`;
@@ -405,7 +407,7 @@
 
         function renderFlights(flights, tbody, overheadIds) {
             if (!flights || flights.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="no-flights">No flights</td></tr>';
                 return;
             }
 
@@ -461,7 +463,7 @@
             if (arrivedFlights.length > 0) {
                 const arrow = arrivedExpanded ? '▼' : '▶';
                 html += `<tr class="arrived-divider" onclick="toggleArrived()">
-                    <td colspan="6">${arrow} Arrived (${arrivedFlights.length})</td>
+                    <td colspan="7">${arrow} Arrived (${arrivedFlights.length})</td>
                 </tr>`;
                 const hiddenClass = arrivedExpanded ? '' : 'arrived-hidden';
                 for (const f of arrivedFlights) {
@@ -473,7 +475,7 @@
             if (enrouteFlights.length > 0) {
                 const arrow = enrouteExpanded ? '▼' : '▶';
                 html += `<tr class="arrived-divider" onclick="toggleEnroute()">
-                    <td colspan="6">${arrow} En Route (${enrouteFlights.length})</td>
+                    <td colspan="7">${arrow} En Route (${enrouteFlights.length})</td>
                 </tr>`;
                 const hiddenClass = enrouteExpanded ? '' : 'arrived-hidden';
                 for (const f of enrouteFlights) {
@@ -487,7 +489,7 @@
             }
 
             if (html === '') {
-                html = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
+                html = '<tr><td colspan="7" class="no-flights">No flights</td></tr>';
             }
 
             tbody.innerHTML = html;
@@ -533,6 +535,7 @@
                 ['Status', escapeHtml(f.status || '—')],
                 ['Aircraft', escapeHtml(f.aircraftType || '—')],
                 ['Registration', escapeHtml(f.registration || '—')],
+                ['Runway', escapeHtml(f.runway || '—')],
                 ...timeFields.map(([label, iso]) => [label, iso ? escapeHtml(formatTime(iso)) : '—']),
             ];
 
@@ -552,7 +555,7 @@
             }
 
             return `<tr class="flight-detail">
-                <td colspan="6">
+                <td colspan="7">
                     <div class="detail-content">
                         <div class="info-grid">${infoHtml}</div>
                         <div class="map-container" id="${mapId}">${mapHtml}</div>
@@ -613,7 +616,7 @@
                 renderFlights(lastFlights, tbody, lastOverheadIds);
             } catch (err) {
                 console.error('Refresh error:', err);
-                tbody.innerHTML = '<tr><td colspan="6" class="error-msg">Error loading data</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="error-msg">Error loading data</td></tr>';
             }
 
             document.getElementById('last-updated').textContent = 'Last updated: ' + formatNow();
