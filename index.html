@@ -239,6 +239,9 @@
             }
 
             flights.sort((a, b) => {
+                const aArr = (a.status || '').toLowerCase().includes('arrived') ? 0 : 1;
+                const bArr = (b.status || '').toLowerCase().includes('arrived') ? 0 : 1;
+                if (aArr !== bArr) return aArr - bArr;
                 if (!a.time) return 1;
                 if (!b.time) return -1;
                 return new Date(a.time) - new Date(b.time);
@@ -248,6 +251,8 @@
             const now = Date.now();
             let nextIdx = -1;
             for (let i = 0; i < flights.length; i++) {
+                const sLower = (flights[i].status || '').toLowerCase();
+                if (sLower.includes('arrived')) continue;
                 if (flights[i].time && new Date(flights[i].time) >= now) {
                     nextIdx = i;
                     break;
