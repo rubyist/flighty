@@ -56,16 +56,10 @@ type aeroFlight struct {
 	FaFlightID   string      `json:"fa_flight_id"`
 	Origin       aeroAirport `json:"origin"`
 	Destination  aeroAirport `json:"destination"`
-	EstimatedOut string      `json:"estimated_out"`
 	EstimatedOff string      `json:"estimated_off"`
 	EstimatedOn  string      `json:"estimated_on"`
-	EstimatedIn  string      `json:"estimated_in"`
-	ScheduledOut string      `json:"scheduled_out"`
 	ScheduledOff string      `json:"scheduled_off"`
-	ScheduledIn  string      `json:"scheduled_in"`
 	ScheduledOn  string      `json:"scheduled_on"`
-	ActualOut    string      `json:"actual_out"`
-	ActualIn     string      `json:"actual_in"`
 	ActualOff    string      `json:"actual_off"`
 	ActualOn     string      `json:"actual_on"`
 	AircraftType string      `json:"aircraft_type"`
@@ -122,16 +116,16 @@ func toFrontendAirport(a aeroAirport) frontendAirport {
 func toFrontendDeparture(f aeroFlight) frontendFlight {
 	var statusTime string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
-		statusTime = firstNonEmpty(f.ActualOn, f.ActualIn)
+		statusTime = f.ActualOn
 	} else {
-		statusTime = firstNonEmpty(f.ScheduledOff, f.ScheduledOut)
+		statusTime = f.ScheduledOff
 	}
 	return frontendFlight{
 		Ident:        f.Ident,
 		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOff, f.EstimatedOff, f.ScheduledOff, f.ActualOut, f.EstimatedOut, f.ScheduledOut),
+		Time:         firstNonEmpty(f.ActualOff, f.EstimatedOff, f.ScheduledOff),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
@@ -142,16 +136,16 @@ func toFrontendDeparture(f aeroFlight) frontendFlight {
 func toFrontendArrival(f aeroFlight) frontendFlight {
 	var statusTime string
 	if strings.Contains(strings.ToLower(f.Status), "arrived") {
-		statusTime = firstNonEmpty(f.ActualOn, f.ActualIn)
+		statusTime = f.ActualOn
 	} else {
-		statusTime = firstNonEmpty(f.ScheduledOn, f.ScheduledIn)
+		statusTime = f.ScheduledOn
 	}
 	return frontendFlight{
 		Ident:        f.Ident,
 		FaFlightID:   f.FaFlightID,
 		Origin:       toFrontendAirport(f.Origin),
 		Destination:  toFrontendAirport(f.Destination),
-		Time:         firstNonEmpty(f.ActualOn, f.EstimatedOn, f.ScheduledOn, f.ActualIn, f.EstimatedIn, f.ScheduledIn),
+		Time:         firstNonEmpty(f.ActualOn, f.EstimatedOn, f.ScheduledOn),
 		AircraftType: f.AircraftType,
 		Registration: f.Registration,
 		Status:       f.Status,
