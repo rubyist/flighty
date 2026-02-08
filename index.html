@@ -134,6 +134,31 @@
             border-top: 3px solid #8a7a2e;
         }
 
+        tr.next-up td:first-child,
+        tr.next-up td:last-child {
+            position: relative;
+        }
+
+        tr.next-up td:first-child::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 6px solid #8a7a2e;
+        }
+
+        tr.next-up td:last-child::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            right: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-right: 6px solid #8a7a2e;
+        }
+
         tr.overhead {
             border-left: 3px solid #a45a52;
         }
