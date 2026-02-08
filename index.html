@@ -147,6 +147,29 @@
             opacity: 0.5;
         }
 
+        tr.arrived-divider {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        tr.arrived-divider td {
+            background: #e6dcc8;
+            color: #6b4226;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        tr.arrived-divider:hover td {
+            background: #ddd0b8;
+        }
+
+        tr.arrived-hidden {
+            display: none;
+        }
+
         .time-actual    { color: #4e7a56; }
         .time-estimated { color: #4a6d8a; }
         .time-scheduled { color: #8a7a2e; }
@@ -232,76 +255,153 @@
             return 'Scheduled';
         }
 
+        let arrivedExpanded = false;
+        let enrouteExpanded = false;
+
+        function renderFlightRow(f, isNextUp, overheadIds, extraClasses) {
+            const icon = f.direction === 'dep' ? '🛫' : '🛬';
+            const time = formatTime(f.time);
+            const identText = escapeHtml(f.ident || '—');
+            let identCell = identText;
+            if (f.faFlightId) {
+                const encoded = btoa(JSON.stringify(f));
+                identCell = `<a href="/flight?id=${encodeURIComponent(f.faFlightId)}&data=${encodeURIComponent(encoded)}">${identText}</a>`;
+            }
+            const airportField = f.direction === 'dep' ? 'destination' : 'origin';
+            const apt = f[airportField] || {};
+            const code = apt.code || '';
+            const name = apt.name || '';
+            let airportCell = '—';
+            if (code) {
+                const svURL = `https://skyvector.com/airport/${code}`;
+                const label = name ? `${escapeHtml(code)} - ${escapeHtml(name)}` : escapeHtml(code);
+                airportCell = `<a href="${svURL}" target="_blank">${label}</a>`;
+            }
+            const aircraft = escapeHtml(f.registration || f.aircraftType || '');
+            const statusText = f.status || '';
+            const statusLower = statusText.toLowerCase();
+            const statusClass = statusLower.includes('arrived') ? 'status-arrived'
+                : statusLower.includes('en route') ? 'status-enroute'
+                : statusLower.includes('scheduled') ? 'status-scheduled'
+                : '';
+            const status = escapeHtml(statusText);
+            const statusTime = f.statusTime ? formatTime(f.statusTime) : '';
+            const isOverhead = overheadIds && overheadIds.has(f.faFlightId);
+            const classes = [...(extraClasses || [])];
+            if (isNextUp) classes.push('next-up');
+            if (isOverhead) classes.push('overhead');
+            if (statusLower.includes('arrived')) classes.push('arrived');
+            const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
+            return `<tr${cls}>
+                <td>${icon}</td>
+                <td><span class="${timeSourceClass(f.timeSource)}" title="${timeSourceLabel(f.timeSource)}">${time}</span></td>
+                <td>${identCell}</td>
+                <td>${airportCell}</td>
+                <td>${aircraft}</td>
+                <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time ${timeSourceClass(f.statusTimeSource)}" title="${timeSourceLabel(f.statusTimeSource)}">(${statusTime})</span>` : ''}</span></td>
+            </tr>`;
+        }
+
         function renderFlights(flights, tbody, overheadIds) {
             if (!flights || flights.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
                 return;
             }
 
-            flights.sort((a, b) => {
-                const aArr = (a.status || '').toLowerCase().includes('arrived') ? 0 : 1;
-                const bArr = (b.status || '').toLowerCase().includes('arrived') ? 0 : 1;
-                if (aArr !== bArr) return aArr - bArr;
+            // Separate arrived, en route departures, and active flights
+            const arrivedFlights = [];
+            const enrouteFlights = [];
+            const activeFlights = [];
+            for (const f of flights) {
+                const statusLower = (f.status || '').toLowerCase();
+                if (statusLower.includes('arrived')) {
+                    arrivedFlights.push(f);
+                } else if (f.direction === 'dep' && statusLower.includes('en route')) {
+                    enrouteFlights.push(f);
+                } else {
+                    activeFlights.push(f);
+                }
+            }
+
+            // Sort active flights by time
+            activeFlights.sort((a, b) => {
                 if (!a.time) return 1;
                 if (!b.time) return -1;
                 return new Date(a.time) - new Date(b.time);
             });
 
-            // Find the first flight with a known time at or after now
+            // Sort arrived flights by time
+            arrivedFlights.sort((a, b) => {
+                if (!a.time) return 1;
+                if (!b.time) return -1;
+                return new Date(a.time) - new Date(b.time);
+            });
+
+            // Sort en route flights by time
+            enrouteFlights.sort((a, b) => {
+                if (!a.time) return 1;
+                if (!b.time) return -1;
+                return new Date(a.time) - new Date(b.time);
+            });
+
+            // Find the next-up flight among active flights
             const now = Date.now();
             let nextIdx = -1;
-            for (let i = 0; i < flights.length; i++) {
-                const sLower = (flights[i].status || '').toLowerCase();
-                if (sLower.includes('arrived')) continue;
-                if (flights[i].time && new Date(flights[i].time) >= now) {
+            for (let i = 0; i < activeFlights.length; i++) {
+                if (activeFlights[i].time && new Date(activeFlights[i].time) >= now) {
                     nextIdx = i;
                     break;
                 }
             }
 
-            tbody.innerHTML = flights.map((f, i) => {
-                const icon = f.direction === 'dep' ? '🛫' : '🛬';
-                const time = formatTime(f.time);
-                const identText = escapeHtml(f.ident || '—');
-                let identCell = identText;
-                if (f.faFlightId) {
-                    const encoded = btoa(JSON.stringify(f));
-                    identCell = `<a href="/flight?id=${encodeURIComponent(f.faFlightId)}&data=${encodeURIComponent(encoded)}">${identText}</a>`;
-                }
-                const airportField = f.direction === 'dep' ? 'destination' : 'origin';
-                const apt = f[airportField] || {};
-                const code = apt.code || '';
-                const name = apt.name || '';
-                let airportCell = '—';
-                if (code) {
-                    const svURL = `https://skyvector.com/airport/${code}`;
-                    const label = name ? `${escapeHtml(code)} - ${escapeHtml(name)}` : escapeHtml(code);
-                    airportCell = `<a href="${svURL}" target="_blank">${label}</a>`;
-                }
-                const aircraft = escapeHtml(f.registration || f.aircraftType || '');
-                const statusText = f.status || '';
-                const statusLower = statusText.toLowerCase();
-                const statusClass = statusLower.includes('arrived') ? 'status-arrived'
-                    : statusLower.includes('en route') ? 'status-enroute'
-                    : statusLower.includes('scheduled') ? 'status-scheduled'
-                    : '';
-                const status = escapeHtml(statusText);
-                const statusTime = f.statusTime ? formatTime(f.statusTime) : '';
-                const isOverhead = overheadIds && overheadIds.has(f.faFlightId);
-                const classes = [];
-                if (i === nextIdx) classes.push('next-up');
-                if (isOverhead) classes.push('overhead');
-                if (statusLower.includes('arrived')) classes.push('arrived');
-                const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
-                return `<tr${cls}>
-                    <td>${icon}</td>
-                    <td><span class="${timeSourceClass(f.timeSource)}" title="${timeSourceLabel(f.timeSource)}">${time}</span></td>
-                    <td>${identCell}</td>
-                    <td>${airportCell}</td>
-                    <td>${aircraft}</td>
-                    <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time ${timeSourceClass(f.statusTimeSource)}" title="${timeSourceLabel(f.statusTimeSource)}">(${statusTime})</span>` : ''}</span></td>
+            let html = '';
+
+            // Render arrived divider + rows at top
+            if (arrivedFlights.length > 0) {
+                const arrow = arrivedExpanded ? '▼' : '▶';
+                html += `<tr class="arrived-divider" onclick="toggleArrived()">
+                    <td colspan="6">${arrow} Arrived (${arrivedFlights.length})</td>
                 </tr>`;
-            }).join('');
+                const hiddenClass = arrivedExpanded ? '' : 'arrived-hidden';
+                for (const f of arrivedFlights) {
+                    html += renderFlightRow(f, false, overheadIds, hiddenClass ? [hiddenClass] : []);
+                }
+            }
+
+            // Render en route divider + rows
+            if (enrouteFlights.length > 0) {
+                const arrow = enrouteExpanded ? '▼' : '▶';
+                html += `<tr class="arrived-divider" onclick="toggleEnroute()">
+                    <td colspan="6">${arrow} En Route (${enrouteFlights.length})</td>
+                </tr>`;
+                const hiddenClass = enrouteExpanded ? '' : 'arrived-hidden';
+                for (const f of enrouteFlights) {
+                    html += renderFlightRow(f, false, overheadIds, hiddenClass ? [hiddenClass] : []);
+                }
+            }
+
+            // Render active flights
+            for (let i = 0; i < activeFlights.length; i++) {
+                html += renderFlightRow(activeFlights[i], i === nextIdx, overheadIds);
+            }
+
+            if (html === '') {
+                html = '<tr><td colspan="6" class="no-flights">No flights</td></tr>';
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        function toggleArrived() {
+            arrivedExpanded = !arrivedExpanded;
+            const tbody = document.getElementById('flights-body');
+            if (lastFlights.length) renderFlights(lastFlights, tbody, lastOverheadIds);
+        }
+
+        function toggleEnroute() {
+            enrouteExpanded = !enrouteExpanded;
+            const tbody = document.getElementById('flights-body');
+            if (lastFlights.length) renderFlights(lastFlights, tbody, lastOverheadIds);
         }
 
         let lastFlights = [];
