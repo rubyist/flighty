@@ -173,6 +173,85 @@
         .time-actual    { color: #4e7a56; }
         .time-estimated { color: #4a6d8a; }
         .time-scheduled { color: #8a7a2e; }
+
+        tr.flight-row { cursor: pointer; }
+
+        tr.flight-detail > td {
+            padding: 0;
+            border-bottom: 1px solid #d6cbb2;
+        }
+
+        tr.flight-detail:hover > td {
+            background: inherit;
+        }
+
+        .detail-content {
+            display: flex;
+            gap: 20px;
+            padding: 12px 16px;
+            background: #e9e1cf;
+        }
+
+        .detail-content .info-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 4px 12px;
+            font-size: 0.85em;
+        }
+
+        .detail-content .info-label {
+            color: #6b4226;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85em;
+        }
+
+        .detail-content .info-value {
+            color: #3a2e1e;
+        }
+
+        .detail-content .info-value a {
+            color: #2a7565;
+            text-decoration: none;
+            border-bottom: 1px dotted #2a7565;
+        }
+
+        .detail-content .info-value a:hover {
+            color: #1d5c4f;
+            border-bottom-style: solid;
+        }
+
+        .detail-content .map-container {
+            flex: 0 0 300px;
+            text-align: center;
+        }
+
+        .detail-content .map-container img {
+            max-width: 100%;
+            border: 1px solid #c4b99a;
+        }
+
+        .detail-content .map-loading,
+        .detail-content .map-error {
+            color: #9a8e7a;
+            font-style: italic;
+            padding: 20px;
+            font-size: 0.85em;
+        }
+
+        .detail-content .map-error {
+            color: #b5432a;
+        }
+
+        @media (max-width: 700px) {
+            .detail-content {
+                flex-direction: column;
+            }
+            .detail-content .map-container {
+                flex: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -257,16 +336,14 @@
 
         let arrivedExpanded = false;
         let enrouteExpanded = false;
+        let expandedFlights = new Set();
+        const mapCache = new Map();
 
         function renderFlightRow(f, isNextUp, overheadIds, extraClasses) {
             const icon = f.direction === 'dep' ? '🛫' : '🛬';
             const time = formatTime(f.time);
             const identText = escapeHtml(f.ident || '—');
             let identCell = identText;
-            if (f.faFlightId) {
-                const encoded = btoa(JSON.stringify(f));
-                identCell = `<a href="/flight?id=${encodeURIComponent(f.faFlightId)}&data=${encodeURIComponent(encoded)}">${identText}</a>`;
-            }
             const airportField = f.direction === 'dep' ? 'destination' : 'origin';
             const apt = f[airportField] || {};
             const code = apt.code || '';
@@ -288,11 +365,13 @@
             const statusTime = f.statusTime ? formatTime(f.statusTime) : '';
             const isOverhead = overheadIds && overheadIds.has(f.faFlightId);
             const classes = [...(extraClasses || [])];
+            classes.push('flight-row');
             if (isNextUp) classes.push('next-up');
             if (isOverhead) classes.push('overhead');
             if (statusLower.includes('arrived')) classes.push('arrived');
-            const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
-            return `<tr${cls}>
+            const cls = ` class="${classes.join(' ')}"`;
+            const onclick = f.faFlightId ? ` onclick="toggleFlightDetail('${escapeHtml(f.faFlightId)}')"` : '';
+            let row = `<tr${cls}${onclick}>
                 <td>${icon}</td>
                 <td><span class="${timeSourceClass(f.timeSource)}" title="${timeSourceLabel(f.timeSource)}">${time}</span></td>
                 <td>${identCell}</td>
@@ -300,6 +379,12 @@
                 <td>${aircraft}</td>
                 <td class="${statusClass}"><span class="status-cell">${status}${statusTime ? `<span class="status-time ${timeSourceClass(f.statusTimeSource)}" title="${timeSourceLabel(f.statusTimeSource)}">(${statusTime})</span>` : ''}</span></td>
             </tr>`;
+
+            if (f.faFlightId && expandedFlights.has(f.faFlightId)) {
+                row += renderFlightDetail(f);
+            }
+
+            return row;
         }
 
         function renderFlights(flights, tbody, overheadIds) {
@@ -402,6 +487,97 @@
             enrouteExpanded = !enrouteExpanded;
             const tbody = document.getElementById('flights-body');
             if (lastFlights.length) renderFlights(lastFlights, tbody, lastOverheadIds);
+        }
+
+        function renderFlightDetail(f) {
+            const originCode = (f.origin && f.origin.code) || '';
+            const originName = (f.origin && f.origin.name) || '';
+            const destCode = (f.destination && f.destination.code) || '';
+            const destName = (f.destination && f.destination.name) || '';
+
+            function airportDisplay(code, name) {
+                if (!code) return '—';
+                const svURL = `https://skyvector.com/airport/${escapeHtml(code)}`;
+                const label = name ? `${escapeHtml(code)} — ${escapeHtml(name)}` : escapeHtml(code);
+                return `<a href="${svURL}" target="_blank">${label}</a>`;
+            }
+
+            const timeFields = [
+                ['Sched Off', f.scheduledOff],
+                ['Est Off', f.estimatedOff],
+                ['Actual Off', f.actualOff],
+                ['Sched On', f.scheduledOn],
+                ['Est On', f.estimatedOn],
+                ['Actual On', f.actualOn],
+            ];
+
+            const rows = [
+                ['Origin', airportDisplay(originCode, originName)],
+                ['Destination', airportDisplay(destCode, destName)],
+                ['Status', escapeHtml(f.status || '—')],
+                ['Aircraft', escapeHtml(f.aircraftType || '—')],
+                ['Registration', escapeHtml(f.registration || '—')],
+                ...timeFields.map(([label, iso]) => [label, iso ? escapeHtml(formatTime(iso)) : '—']),
+            ];
+
+            const infoHtml = rows.map(([label, value]) =>
+                `<div class="info-label">${label}</div><div class="info-value">${value}</div>`
+            ).join('');
+
+            const mapId = `map-${f.faFlightId}`;
+            let mapHtml;
+            if (mapCache.has(f.faFlightId)) {
+                const cached = mapCache.get(f.faFlightId);
+                mapHtml = cached
+                    ? `<img src="data:image/png;base64,${cached}" alt="Flight map">`
+                    : `<div class="map-error">No map available</div>`;
+            } else {
+                mapHtml = `<div class="map-loading">Loading map&hellip;</div>`;
+            }
+
+            return `<tr class="flight-detail">
+                <td colspan="6">
+                    <div class="detail-content">
+                        <div class="info-grid">${infoHtml}</div>
+                        <div class="map-container" id="${mapId}">${mapHtml}</div>
+                    </div>
+                </td>
+            </tr>`;
+        }
+
+        function toggleFlightDetail(faFlightId) {
+            if (expandedFlights.has(faFlightId)) {
+                expandedFlights.delete(faFlightId);
+            } else {
+                expandedFlights.add(faFlightId);
+            }
+            const tbody = document.getElementById('flights-body');
+            if (lastFlights.length) renderFlights(lastFlights, tbody, lastOverheadIds);
+
+            // Load map on demand if newly expanded and not cached
+            if (expandedFlights.has(faFlightId) && !mapCache.has(faFlightId)) {
+                fetch(`/flight/map?id=${encodeURIComponent(faFlightId)}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        const mapEl = document.getElementById(`map-${faFlightId}`);
+                        if (data.map) {
+                            const b64 = data.map.replace(/\n/g, '');
+                            mapCache.set(faFlightId, b64);
+                            if (mapEl) mapEl.innerHTML = `<img src="data:image/png;base64,${b64}" alt="Flight map">`;
+                        } else {
+                            mapCache.set(faFlightId, null);
+                            if (mapEl) mapEl.innerHTML = '<div class="map-error">No map available</div>';
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Map fetch error:', err);
+                        const mapEl = document.getElementById(`map-${faFlightId}`);
+                        if (mapEl) mapEl.innerHTML = '<div class="map-error">Could not load map</div>';
+                    });
+            }
         }
 
         let lastFlights = [];
